@@ -1218,7 +1218,10 @@ LEFT JOIN ris.reports r ON r.study_id = s.id
 GROUP BY DATE(a.scheduled_at), m.modality_type
 ORDER BY day DESC, m.modality_type;
 
-CREATE OR REPLACE VIEW ris.v_radiologist_studies AS
+-- `s.*` congela a lista de colunas: um ALTER TABLE posterior em pacs.studies faria o
+-- CREATE OR REPLACE falhar na reaplicação. DROP + CREATE mantém o schema idempotente.
+DROP VIEW IF EXISTS ris.v_radiologist_studies;
+CREATE VIEW ris.v_radiologist_studies AS
 SELECT s.*, u.id AS assigned_radiologist_id
 FROM pacs.studies s
 LEFT JOIN ris.reports r ON r.study_id = s.id AND r.status NOT IN ('cancelled')
@@ -2006,6 +2009,13 @@ CREATE TABLE IF NOT EXISTS pacs.unmatched_studies (
 );
 CREATE INDEX IF NOT EXISTS idx_unmatched_status ON pacs.unmatched_studies(status, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_unmatched_orthanc ON pacs.unmatched_studies(orthanc_study_id);
+
+-- 21.4 Senha provisória: troca obrigatória no 1º acesso ------------------------
+-- Admin cria/reseta a conta com senha gerada pelo backend → o funcionário é obrigado a
+-- trocá-la ao entrar (POST /auth/change-password limpa a marca).
+ALTER TABLE auth.users
+  ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN     NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS password_changed_at  TIMESTAMPTZ;
 
 -- =============================================================================
 -- FIM DO SCHEMA

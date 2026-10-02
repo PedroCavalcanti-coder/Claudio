@@ -19,6 +19,12 @@
 #   4. Frontend em http://localhost · API em http://localhost:3000/api/v1
 # ═════════════════════════════════════════════════════════════════════════════
 
+# Nome de projeto FIXO: os volumes ficam `ris-pacs_postgres-data`, `ris-pacs_orthanc-data`…
+# independente da pasta onde o repositório foi clonado (os scripts de backup dependem disso).
+# Instalação antiga numa pasta de outro nome? Suba com COMPOSE_PROJECT_NAME=<nome antigo>
+# (ou migre os volumes) — senão o compose cria volumes novos e vazios.
+name: ris-pacs
+
 services:
 
   # ── PostgreSQL (banco LOCAL — substitui o Neon cloud) ────────────────────

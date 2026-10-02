@@ -76,8 +76,10 @@ Thumbs.db
 # Dumps de banco (dados/hashes — nunca versionar)
 infra/db/*.sql
 
-# Certificados TLS (chave privada — nunca versionar)
-infra/tls/
+# Certificados TLS (chave privada — nunca versionar). O script que os gera fica em infra/scripts/.
+infra/tls/*.key
+infra/tls/*.crt
+infra/tls/*.pem
 
 # Backups locais (dados/hashes — nunca versionar)
 backups/

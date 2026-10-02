@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Setup global do jest (roda uma vez, antes dos workers):
- *   1. recria o banco de teste e aplica 001_schema.sql + 002_seed.sql;
+ *   1. recria o banco de teste e aplica 001_schema.sql + seed_catalogos.sql + seed_demo.sql;
  *   2. sobe um S3 falso (substitui o RustFS) numa porta livre.
  * O banco é descartável — NUNCA aponte TEST_DATABASE_URL para um banco real.
  *
@@ -30,7 +30,7 @@ module.exports = async () => {
   const db = new Client({ connectionString: url.toString() });
   await db.connect();
   const dir = path.resolve(__dirname, '../../migrations');
-  for (const f of ['001_schema.sql', '002_seed.sql']) {
+  for (const f of ['001_schema.sql', 'seed_catalogos.sql', 'seed_demo.sql']) {
     await db.query(fs.readFileSync(path.join(dir, f), 'utf8'));
   }
   await db.end();

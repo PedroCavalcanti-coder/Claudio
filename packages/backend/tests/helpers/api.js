@@ -8,7 +8,7 @@ const app = require('../../src/app');
 
 const P = '/api/v1';
 
-// Perfis do 002_seed.sql (credenciais de DEMONSTRAÇÃO — o banco de teste é descartável).
+// Perfis do seed_demo.sql (credenciais de DEMONSTRAÇÃO — o banco de teste é descartável).
 const LOGINS = {
   admin:  ['login_admin',      { email: 'admin@clinica.com.br', password: 'admin123456' }],
   recep:  ['login_recepcao',   { username: 'recepcao', password: 'recep123' }],
