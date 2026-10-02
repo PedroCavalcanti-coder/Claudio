@@ -8,10 +8,14 @@ interface AuthStore {
   user:            User | null;
   accessToken:     string | null;
   permissions:     Permissions;
+  /** Permissões granulares `recurso:ação` (mesma matriz que o backend aplica). */
+  granular:        string[];
   isAuthenticated: boolean;
   setAuth:         (user: User, token: string, perms: Permissions) => void;
+  setGranular:     (granular: string[]) => void;
   setToken:        (token: string) => void;
   logout:          () => void;
+  /** `can('farmacia')` = tela liberada · `can('pharmacy:dispense')` = ação permitida pelo backend. */
   can:             (resource: string) => boolean;
   hasRole:         (...roles: UserRole[]) => boolean;
 }
@@ -22,12 +26,18 @@ export const useAuthStore = create<AuthStore>()(
       user:            null,
       accessToken:     null,
       permissions:     {},
+      granular:        [],
       isAuthenticated: false,
 
       setAuth: (user, token, perms) => {
         sessionStorage.setItem('access_token', token);
-        set({ user, accessToken: token, permissions: perms, isAuthenticated: true });
+        set({
+          user, accessToken: token, permissions: perms, isAuthenticated: true,
+          granular: user.granular_permissions ?? [],
+        });
       },
+
+      setGranular: (granular) => set({ granular }),
 
       setToken: (token) => {
         sessionStorage.setItem('access_token', token);
@@ -36,11 +46,16 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         sessionStorage.removeItem('access_token');
-        set({ user: null, accessToken: null, permissions: {}, isAuthenticated: false });
+        set({ user: null, accessToken: null, permissions: {}, granular: [], isAuthenticated: false });
       },
 
       can: (resource) => {
-        const { permissions } = get();
+        const { permissions, granular, user } = get();
+        if (resource.includes(':')) {
+          if (user?.role === 'admin') return true;
+          const [res] = resource.split(':');
+          return granular.includes(resource) || granular.includes('*') || granular.includes(`${res}:*`);
+        }
         return !!permissions[resource];
       },
 
@@ -54,6 +69,7 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (s) => ({
         user:            s.user,
         permissions:     s.permissions,
+        granular:        s.granular,
         isAuthenticated: s.isAuthenticated,
       }),
     }

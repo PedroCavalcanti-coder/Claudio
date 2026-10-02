@@ -159,7 +159,7 @@ function StartForm({ onDone }: { onDone: (patientId?: string) => void }) {
 
   const searchQ = useQuery({
     queryKey: ['patients-search', search], enabled: mode === 'existing' && search.trim().length >= 2,
-    queryFn: () => patientsApi.list({ search: search.trim(), limit: 8 }), select: (r) => (r.data as any).data as any[],
+    queryFn: () => patientsApi.list({ q: search.trim(), limit: 8 }), select: (r) => (r.data as any).data as any[],
   });
 
   const mut = useMutation({

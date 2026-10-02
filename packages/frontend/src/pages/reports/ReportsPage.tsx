@@ -24,7 +24,17 @@ function ReportEditor({ report, onClose }: { report: Report; onClose: () => void
   });
 
   const signMut = useMutation({
-    mutationFn: () => reportsApi.sign(report.id, { content_html: content || `<p><b>Achados:</b> ${findings}</p><p><b>Conclusão:</b> ${conclusion}</p>` }),
+    // Nome/CRM do signatário vêm do cadastro do radiologista, no backend.
+    mutationFn: async () => {
+      // Grava o texto atual antes de assinar (o laudo assinado é renderizado dos campos estruturados).
+      await reportsApi.update(report.id, { findings, conclusion, content_html: content });
+      return reportsApi.sign(report.id, {
+        findings:        findings.trim(),
+        conclusion:      conclusion.trim(),
+        technique:       report.technique,
+        recommendations: report.recommendations,
+      });
+    },
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['reports'] }); onClose(); },
     onError:    (err) => setError(getErrorMessage(err)),
   });
@@ -72,7 +82,7 @@ function ReportEditor({ report, onClose }: { report: Report; onClose: () => void
           <button
             className="btn-primary"
             onClick={() => signMut.mutate()}
-            disabled={signMut.isPending || (!findings && !conclusion)}
+            disabled={signMut.isPending || !findings.trim() || !conclusion.trim()}
           >
             {signMut.isPending ? <Spinner size={14} /> : <><CheckCircle size={14} /> Assinar Laudo</>}
           </button>

@@ -215,12 +215,13 @@ async function update(req, res) {
 function validateForSign(payload) {
   const errs = [];
   const { findings, conclusion, doctor_name, doctor_crm } = payload || {};
+  // Nome/CRM vêm do CADASTRO do radiologista autenticado (não do cliente) — ver sign().
   // O documento legal é renderizado server-side a partir destes campos
   // estruturados — não dependemos mais do content_html enviado pelo cliente.
   if (!findings || !findings.trim())     errs.push('Achados é obrigatório');
   if (!conclusion || !conclusion.trim()) errs.push('Impressão diagnóstica é obrigatória');
   if (!doctor_name || !doctor_name.trim()) errs.push('Nome do radiologista é obrigatório');
-  if (!doctor_crm || !/^\d{3,6}/.test(doctor_crm.trim())) errs.push('CRM válido é obrigatório');
+  if (!doctor_crm || !/^\d{3,6}/.test(String(doctor_crm).trim())) errs.push('CRM válido é obrigatório — complete o cadastro do radiologista (CRM/UF)');
   return errs;
 }
 
@@ -228,23 +229,13 @@ async function sign(req, res) {
   const { id } = req.params;
   const {
     content_html, findings, conclusion, technique, recommendations,
-    doctor_name, doctor_crm, doctor_institution,
+    doctor_institution,
     digital_certificate_sn, digital_certificate_cn,
     cid10_codes,
   } = req.body || {};
   const cidList = Array.isArray(cid10_codes)
     ? cid10_codes.filter(c => c && c.code).map(c => ({ code: String(c.code), description: String(c.description || '') }))
     : [];
-
-  const validationErrs = validateForSign({
-    content_html, findings, conclusion, doctor_name, doctor_crm,
-  });
-  if (validationErrs.length) {
-    throw new AppError(
-      `Campos obrigatórios faltando: ${validationErrs.join('; ')}`,
-      422, 'VALIDATION_FAILED'
-    );
-  }
 
   const { rows } = await db.query(
     `SELECT r.id, r.status, r.radiologist_id, r.technique, r.recommendations,
@@ -269,6 +260,17 @@ async function sign(req, res) {
   }
   if (report.radiologist_id !== req.user.sub) {
     throw new AppError('Apenas o radiologista responsável pode assinar', 403, 'FORBIDDEN');
+  }
+
+  // Identidade do signatário = cadastro do usuário autenticado (nunca o que o cliente enviar).
+  const doctor_name = report.radiologist_name;
+  const doctor_crm  = report.crm;
+  const validationErrs = validateForSign({ content_html, findings, conclusion, doctor_name, doctor_crm });
+  if (validationErrs.length) {
+    throw new AppError(
+      `Campos obrigatórios faltando: ${validationErrs.join('; ')}`,
+      422, 'VALIDATION_FAILED'
+    );
   }
 
   const signedAtIso = new Date().toISOString();

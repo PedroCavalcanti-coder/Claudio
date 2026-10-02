@@ -13,7 +13,8 @@ const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString('pt-BR') : '
 export default function FarmaciaPage() {
   const can = useAuthStore((s) => s.can);
   const [tab, setTab] = useState<'estoque' | 'dispensar'>('estoque');
-  const canDispense = can('farmacia'); // gate de UI; backend ainda exige pharmacy:dispense por request
+  // Dispensar exige pharmacy:dispense (enfermagem); recepção/técnico só gerem estoque
+  const canDispense = can('pharmacy:dispense') && can('prescription:read');
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -59,7 +60,7 @@ function EstoqueTab() {
     queryFn: () => pharmacyApi.stock({ q: q || undefined, low: low ? '1' : undefined }),
     select: sel,
   });
-  const canStock = can('farmacia');
+  const canStock = can('pharmacy:stock');
 
   const move = useMutation({
     mutationFn: ({ id, body }: { id: string; body: any }) => pharmacyApi.movement(id, body),
@@ -204,7 +205,7 @@ function DispensarTab() {
 
   const results = useQuery({
     queryKey: ['pharm-pt-search', search],
-    queryFn: () => patientsApi.list({ search }),
+    queryFn: () => patientsApi.list({ q: search }),
     select: sel, enabled: search.trim().length >= 2,
   });
   const prescriptions = useQuery({

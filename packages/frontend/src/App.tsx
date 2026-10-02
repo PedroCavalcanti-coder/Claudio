@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/authStore';
+import { authApi } from './api/endpoints';
 import AppLayout         from './components/layout/AppLayout';
 import RoleGuard         from './components/auth/RoleGuard';
 
@@ -53,6 +55,16 @@ const queryClient = new QueryClient({
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  const role            = useAuthStore(s => s.user?.role);
+  // Sessões antigas (persistidas) não têm as permissões granulares, e o admin pode ter mudado
+  // overrides: sincroniza telas e botões com o backend uma vez por carregamento.
+  useEffect(() => {
+    if (!isAuthenticated || !role || role === 'patient') return;
+    authApi.me().then((r) => {
+      const d = (r.data as any)?.data;
+      if (d) useAuthStore.setState({ permissions: d.permissions ?? {}, granular: d.granular_permissions ?? [] });
+    }).catch(() => { /* offline/401 tratado pelo interceptor */ });
+  }, [isAuthenticated, role]);
   return isAuthenticated ? <>{children}</> : <Navigate to="/login_paciente" replace />;
 }
 

@@ -8,6 +8,7 @@
  * Variáveis: TEST_DATABASE_URL (padrão postgresql://postgres@localhost:5432/ris_pacs_test)
  */
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const { Client } = require('pg');
 const fakeS3 = require('../helpers/fakeS3');
@@ -39,4 +40,15 @@ module.exports = async () => {
   global.__FAKE_S3__ = s3;
   process.env.TEST_DATABASE_URL = url.toString();
   process.env.TEST_S3_PORT = String(s3.port);
+
+  // Chaves estáveis para a execução inteira (ver setupEnv.js).
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding:  { type: 'spki',  format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+  process.env.JWT_PRIVATE_KEY = privateKey;
+  process.env.JWT_PUBLIC_KEY = publicKey;
+  process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+  process.env.KEY_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
 };

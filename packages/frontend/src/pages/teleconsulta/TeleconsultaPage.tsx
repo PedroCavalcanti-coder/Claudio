@@ -23,7 +23,7 @@ export default function TeleconsultaPage() {
 
   const results = useQuery({
     queryKey: ['tele-pt', search], enabled: search.trim().length >= 2,
-    queryFn: () => patientsApi.list({ search }), select: sel,
+    queryFn: () => patientsApi.list({ q: search }), select: sel,
   });
   const sessions = useQuery({
     queryKey: ['tele-sessions', patient?.id], enabled: !!patient,

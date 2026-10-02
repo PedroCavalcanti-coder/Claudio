@@ -1,6 +1,6 @@
 'use strict';
 const { AppError } = require('../utils/errors');
-const { userCan } = require('../config/permissions');
+const { userCan, pagePermissions, PAGES } = require('../config/permissions');
 
 const ROLE_HIERARCHY = {
   patient:      0,
@@ -10,49 +10,6 @@ const ROLE_HIERARCHY = {
   nurse:        3,
   radiologist:  4,
   admin:        5,
-};
-
-// Permissões por recurso — admin tem tudo exceto portal
-const ROUTE_PERMISSIONS = {
-  dashboard:       ['doctor','receptionist','technician','radiologist','admin'],
-  appointments:    ['receptionist','admin'],
-  patients:        ['receptionist','admin'],             // radiologist vê apenas os seus
-  patients_read:   ['receptionist','radiologist','technician','doctor','nurse','admin'],
-  worklist:        ['technician','radiologist','admin'],
-  studies:         ['technician','radiologist','admin'],
-  dicom_upload:    ['technician','radiologist','admin'],
-  webviewer:       ['technician','radiologist','admin'], // recepcionista/médico NÃO
-  reports:         ['radiologist','admin'],
-  reports_own:     ['radiologist','admin'],              // médico vê apenas os seus
-  second_opinion:  ['radiologist','admin'],
-  referrals:       ['receptionist','radiologist','doctor','technician','admin'],
-  settings:        ['admin'],
-  unit_manage:     ['admin','receptionist'],   // gestão da própria unidade (recepção) / todas (admin)
-  consent:         ['receptionist','admin'],
-  notifications:   ['doctor','receptionist','technician','radiologist','admin'],
-  wado:            ['technician','radiologist','admin'],
-  health_units:       ['admin'],
-  procedures_manage:  ['technician','admin'],
-  portal:             ['patient'],
-  // PEP — prontuário eletrônico (aba clínica do paciente). Recepção fica de fora.
-  ehr:                ['doctor','technician','radiologist','nurse','admin'],
-  // Fluxo de atendimento — painel/fila de atendimento (recepção→clínico→medicação).
-  // Recepção faz acolhimento + triagem (medições); enfermeiro e médico atuam no fluxo.
-  atendimento:        ['receptionist','nurse','doctor','admin'],
-  // Administração de medicamentos na unidade (enfermeiro)
-  medicacao:          ['nurse','admin'],
-  // Painel público de chamada (TV) — qualquer funcionário interno, nunca paciente.
-  painel:             ['receptionist','nurse','doctor','technician','radiologist','admin'],
-  // Relatórios operacionais (produção/fila/no-show) — gestão.
-  relatorios:         ['receptionist','radiologist','doctor','admin'],
-  // Faturamento SUS (produção ambulatorial) — recepção/faturamento + admin.
-  faturamento:        ['receptionist','admin'],
-  // Farmácia (estoque + dispensação) — enfermagem/recepção/técnico + admin.
-  farmacia:           ['nurse','receptionist','technician','admin'],
-  // Teleconsulta (sala de vídeo) — médico/radiologista + admin.
-  teleconsulta:       ['doctor','radiologist','admin'],
-  // Liberar acesso ao portal do paciente — recepção/enfermagem/clínicos + admin.
-  portal_grant:       ['receptionist','nurse','doctor','radiologist','admin'],
 };
 
 function authorize(...allowedRoles) {
@@ -155,23 +112,20 @@ function requireOwnership(getResourceOwnerId) {
   };
 }
 
-function getPermissionsForRole(role) {
-  const perms = {};
-  for (const [resource, roles] of Object.entries(ROUTE_PERMISSIONS)) {
-    perms[resource] = roles.includes(role) || (role === 'admin' && resource !== 'portal');
-  }
-  return perms;
+// Páginas liberadas (menu/rotas da UI) — DERIVADAS da matriz granular (config/permissions.js).
+// Aceita o usuário completo ({ role, extra_roles, permission_overrides }) ou (role, extraRoles, overrides).
+function getEffectivePermissions(userOrRole, extraRoles = [], overrides = {}) {
+  const user = typeof userOrRole === 'object' && userOrRole
+    ? userOrRole
+    : { role: userOrRole, extra_roles: extraRoles, permission_overrides: overrides };
+  return pagePermissions(user);
 }
+const getPermissionsForRole = (role) => getEffectivePermissions(role);
 
-// Permissões efetivas considerando papel-base + papéis adicionais (perfil customizado).
-function getEffectivePermissions(role, extraRoles = []) {
-  const allRoles = [role, ...(Array.isArray(extraRoles) ? extraRoles : [])];
-  const perms = {};
-  for (const [resource, roles] of Object.entries(ROUTE_PERMISSIONS)) {
-    perms[resource] = allRoles.some(r => roles.includes(r)) || (role === 'admin' && resource !== 'portal');
-  }
-  return perms;
-}
+// Papéis que enxergam cada página (introspecção/testes), derivado de PAGES.
+const ROUTE_PERMISSIONS = Object.fromEntries(Object.keys(PAGES).map((page) => [
+  page, Object.keys(ROLE_HIERARCHY).filter((r) => pagePermissions({ role: r })[page]),
+]));
 
 module.exports = {
   authorize, authorizeExact, denyRoles, requirePermission,

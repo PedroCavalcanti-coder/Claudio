@@ -115,6 +115,8 @@ const ROLE_PERMISSIONS = {
     'pharmacy:read', 'pharmacy:stock',
   ],
   radiologist: [
+    // Worklist e Dashboard (a tela abria e a chamada dava 403)
+    'worklist:read', 'appointments:read',
     'studies:read', 'studies:stream', 'studies:capture',
     'patients:read', 'patients:update', 'patients:history',
     'reports:read', 'reports:create', 'reports:update', 'reports:sign',
@@ -141,6 +143,8 @@ const ROLE_PERMISSIONS = {
     'teleconsult:manage', 'pharmacy:read', 'portal:grant',
   ],
   doctor: [
+    // Dashboard (agenda do dia) e Relatórios operacionais leem /appointments e /analytics
+    'appointments:read', 'analytics:read',
     'reports:download', 'exam_notes:manage', 'referrals:create',
     'patients:read', 'patients:history', 'episode:manage',
     // PEP — autor clínico completo
@@ -169,6 +173,8 @@ const ROLE_PERMISSIONS = {
     'allergy:read', 'allergy:write', 'medication:read', 'problem:read',
     'immunization:read', 'immunization:write',
     'clinical_note:read', 'prescription:read',
+    // Prontuário aberto pela enfermagem carrega anamnese, anexos e atestados (leitura)
+    'history:read', 'attachment:read', 'certificate:read',
     'medication:administer',
     'reports:download', 'referrals:create',
     'panel:view',
@@ -214,10 +220,69 @@ function listEffective(user) {
   return PERMISSIONS.filter(p => userCan(user, p));
 }
 
+// ── Páginas da UI (menu e rotas) ───────────────────────────────────────────────
+// UMA fonte só: a visibilidade de cada página é DERIVADA da matriz granular acima (papel +
+// papéis extras + overrides do usuário). Antes havia um segundo mapa (ROUTE_PERMISSIONS) que
+// divergia da matriz: a tela abria e a primeira chamada dava 403.
+// `perms`: a página aparece se o usuário tem QUALQUER uma. `roles`: só para páginas sem
+// permissão granular natural (portal do paciente, notificações…).
+const ALL_STAFF = ['receptionist', 'technician', 'radiologist', 'doctor', 'nurse'];
+const PAGES = {
+  dashboard:         { perms: ['appointments:read'] },
+  appointments:      { perms: ['appointments:create'] },
+  patients:          { perms: ['patients:create'] },
+  patients_read:     { perms: ['patients:read'] },
+  worklist:          { perms: ['worklist:read'] },
+  studies:           { perms: ['studies:read'] },
+  dicom_upload:      { perms: ['studies:upload'] },
+  webviewer:         { perms: ['studies:stream'] },
+  reports:           { perms: ['reports:read'] },
+  reports_own:       { perms: ['reports:create'] },
+  second_opinion:    { perms: ['second_opinion:manage'] },
+  referrals:         { perms: ['referrals:create'] },
+  settings:          { perms: ['users:manage'] },
+  unit_manage:       { perms: ['unit:manage'] },
+  consent:           { perms: ['consent:read'] },
+  wado:              { perms: ['studies:stream'] },
+  health_units:      { perms: ['health_units:manage'] },
+  procedures_manage: { perms: ['procedures:manage'] },
+  atendimento:       { perms: ['episode:manage'] },
+  medicacao:         { perms: ['medication:administer'] },
+  painel:            { perms: ['panel:view'] },
+  relatorios:        { perms: ['analytics:read'] },
+  faturamento:       { perms: ['billing:read'] },
+  farmacia:          { perms: ['pharmacy:stock', 'pharmacy:dispense'] },
+  teleconsulta:      { perms: ['teleconsult:manage'] },
+  portal_grant:      { perms: ['portal:grant'] },
+  // sem permissão granular equivalente:
+  ehr:               { roles: ['doctor', 'technician', 'radiologist', 'nurse'] },  // prontuário (recepção fica de fora)
+  notifications:     { roles: ['doctor', 'receptionist', 'technician', 'radiologist'] },
+  portal:            { roles: ['patient'] },
+};
+
+// A página está liberada para `user` ({ role, extra_roles, permission_overrides })?
+function canAccessPage(user, page) {
+  const def = PAGES[page];
+  if (!def || !user) return false;
+  if (user.role === 'admin') return page !== 'portal';
+  if (def.perms) return def.perms.some((p) => userCan(user, p));
+  const roles = [user.role, ...(Array.isArray(user.extra_roles) ? user.extra_roles : [])];
+  return def.roles.some((r) => roles.includes(r));
+}
+
+// { pagina: boolean } enviado no login/me e lido por `can('pagina')` no frontend.
+function pagePermissions(user) {
+  const out = {};
+  for (const page of Object.keys(PAGES)) out[page] = canAccessPage(user, page);
+  return out;
+}
+
+
 // Valida que strings de permissão existem no catálogo (para overrides).
 function isValidPermission(p) { return PERMISSIONS.includes(p); }
 
 module.exports = {
-  PERMISSIONS, ROLE_PERMISSIONS,
+  PERMISSIONS, ROLE_PERMISSIONS, PAGES, ALL_STAFF,
   userCan, listEffective, grantedSet, isValidPermission,
+  canAccessPage, pagePermissions,
 };

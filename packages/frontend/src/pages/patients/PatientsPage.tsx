@@ -324,6 +324,12 @@ export default function PatientsPage() {
   const isAdmin = useAuthStore(s => s.hasRole('admin'));
   const canEhr  = useAuthStore(s => s.can('ehr'));
   const canPortal = useAuthStore(s => s.can('portal_grant'));
+  // Botões seguem a MESMA matriz do backend (permissões granulares)
+  const canCreate = useAuthStore(s => s.can('patients:create'));
+  const canUpdate = useAuthStore(s => s.can('patients:update'));
+  const canDeactivate = useAuthStore(s => s.can('patients:delete'));
+  const canHistory = useAuthStore(s => s.can('patients:history'));
+  const canRefer = useAuthStore(s => s.can('referrals:create'));
   const [portalResult, setPortalResult] = useState<null | { name: string; temp_password?: string; reset?: boolean; exists?: boolean; patientId: string }>(null);
   const portalMut = useMutation({
     mutationFn: ({ patient, reset }: { patient: Patient; reset: boolean }) =>
@@ -428,11 +434,11 @@ export default function PatientsPage() {
       <SectionHeader
         title="Pacientes"
         subtitle="Cadastro e gestão de pacientes"
-        action={
+        action={canCreate ? (
           <button className="btn-primary" onClick={() => setModal('create')}>
             <Plus size={15} /> Novo Paciente
           </button>
-        }
+        ) : undefined}
       />
 
       <div className="flex gap-3 flex-wrap">
@@ -540,21 +546,27 @@ export default function PatientsPage() {
                               <Stethoscope size={12} /> Prontuário
                             </button>
                           )}
-                          <button className="btn-ghost px-2 py-1 text-xs"
-                            onClick={() => { setSelected(p); setModal('edit'); }}>
-                            Editar
-                          </button>
-                          <button className="btn-ghost px-2 py-1 text-xs"
-                            onClick={() => { setSelected(p); setModal('history'); }}>
-                            <History size={12} />
-                          </button>
-                          <button
-                            className="btn-ghost px-2 py-1 text-xs"
-                            title="Encaminhar a outra unidade"
-                            onClick={() => setReferralTarget(p)}
-                          >
-                            <Send size={12} /> Encaminhar
-                          </button>
+                          {canUpdate && (
+                            <button className="btn-ghost px-2 py-1 text-xs"
+                              onClick={() => { setSelected(p); setModal('edit'); }}>
+                              Editar
+                            </button>
+                          )}
+                          {canHistory && (
+                            <button className="btn-ghost px-2 py-1 text-xs"
+                              onClick={() => { setSelected(p); setModal('history'); }}>
+                              <History size={12} />
+                            </button>
+                          )}
+                          {canRefer && (
+                            <button
+                              className="btn-ghost px-2 py-1 text-xs"
+                              title="Encaminhar a outra unidade"
+                              onClick={() => setReferralTarget(p)}
+                            >
+                              <Send size={12} /> Encaminhar
+                            </button>
+                          )}
                           {canPortal && (
                             <button
                               className="btn-ghost px-2 py-1 text-xs"
@@ -583,9 +595,11 @@ export default function PatientsPage() {
                               <ShieldCheck size={12} /> LGPD
                             </button>
                           )}
-                          <button className="btn-danger px-2 py-1 text-xs" onClick={() => setConfirm(p)}>
-                            Inativar
-                          </button>
+                          {canDeactivate && (
+                            <button className="btn-danger px-2 py-1 text-xs" onClick={() => setConfirm(p)}>
+                              Inativar
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

@@ -31,8 +31,9 @@ const signSchema = z.object({
   conclusion:             z.string().min(1),
   technique:              z.string().optional(),
   recommendations:        z.string().optional(),
-  doctor_name:            z.string().min(3),
-  doctor_crm:             z.string().min(3),
+  // doctor_name/doctor_crm (legado): ignorados — o backend usa o cadastro do radiologista autenticado.
+  doctor_name:            z.string().optional(),
+  doctor_crm:             z.string().optional(),
   doctor_institution:     z.string().optional(),
   digital_certificate_sn: z.string().optional(),
   digital_certificate_cn: z.string().optional(),

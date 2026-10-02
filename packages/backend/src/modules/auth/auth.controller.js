@@ -9,7 +9,8 @@ const enc     = require('../../services/encryption');
 const { success } = require('../../utils/response');
 const { AppError } = require('../../utils/errors');
 const env     = require('../../config/env');
-const { getPermissionsForRole, getEffectivePermissions } = require('../../middlewares/authorize');
+const { getEffectivePermissions } = require('../../middlewares/authorize');
+const { listEffective } = require('../../config/permissions');
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -115,7 +116,9 @@ async function issueTokens(req, res, user, redirectTo) {
       role:           user.role,
       health_unit_id: user.health_unit_id,
       extra_roles:    user.extra_roles || [],
-      permissions:    getEffectivePermissions(user.role, user.extra_roles),
+      permissions:    getEffectivePermissions(user),
+      // Permissões granulares (resource:action) — a UI esconde botões que o backend negaria
+      granular_permissions: listEffective(user),
     },
   }, 'Login realizado com sucesso');
 }
@@ -399,17 +402,15 @@ async function me(req, res) {
      WHERE u.id=$1`, [req.user.sub]
   );
   if (!rows.length) throw new AppError('Usuário não encontrado', 404);
-  const { listEffective } = require('../../config/permissions');
   return success(res, {
     ...rows[0],
-    permissions: getEffectivePermissions(rows[0].role, rows[0].extra_roles),
+    permissions: getEffectivePermissions(rows[0]),
     // Lista granular resource:action, além do papel agregado em `permissions`
     granular_permissions: listEffective(rows[0]),
   });
 }
 
 async function myPermissions(req, res) {
-  const { listEffective } = require('../../config/permissions');
   return success(res, {
     role:        req.user.role,
     extra_roles: req.user.extra_roles || [],

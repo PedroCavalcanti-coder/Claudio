@@ -13,6 +13,10 @@ export interface User {
   health_unit_id?: string;
   health_unit_name?:string;
   last_login_at?:  string;
+  /** Páginas liberadas (menu/rotas) e permissões granulares, devolvidas no login. */
+  permissions?:    Record<string, boolean>;
+  granular_permissions?: string[];
+  must_change_password?: boolean;
 }
 
 export interface HealthUnit {

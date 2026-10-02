@@ -2,11 +2,16 @@
 /** Ambiente de cada arquivo de teste (roda ANTES de qualquer require da aplicação). */
 const crypto = require('crypto');
 
-const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding:  { type: 'spki',  format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
+// As chaves são geradas UMA vez em globalSetup (todos os arquivos de teste compartilham o banco:
+// dado cifrado por um arquivo precisa ser legível pelos seguintes). Aqui só há fallback.
+let { JWT_PRIVATE_KEY: privateKey, JWT_PUBLIC_KEY: publicKey } = process.env;
+if (!privateKey) {
+  ({ publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding:  { type: 'spki',  format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  }));
+}
 
 Object.assign(process.env, {
   NODE_ENV: 'test',
@@ -14,8 +19,8 @@ Object.assign(process.env, {
   REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
   JWT_PRIVATE_KEY: privateKey,
   JWT_PUBLIC_KEY: publicKey,
-  ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'),
-  KEY_ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'),
+  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex'),
+  KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex'),
   RUSTFS_ENDPOINT: '127.0.0.1',
   RUSTFS_PORT: process.env.TEST_S3_PORT,
   RUSTFS_ACCESS_KEY: 'test',

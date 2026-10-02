@@ -12,8 +12,18 @@ export const authApi = {
     api.post('/auth/reset-password', { token, password }),
 };
 
+/** Parâmetros aceitos por GET /patients (o backend lê `q`; `search` seria ignorado e devolveria a 1ª página). */
+export interface PatientListParams {
+  q?: string;                     // CPF, CNS, nome completo — ou nome parcial junto com birth_date
+  birth_date?: string;            // AAAA-MM-DD
+  gender?: 'M' | 'F' | 'O';
+  include_inactive?: 'true' | 'false';
+  page?: number;
+  limit?: number;
+}
+
 export const patientsApi = {
-  list:              (params?: Record<string, unknown>) => api.get('/patients', { params }),
+  list:              (params?: PatientListParams) => api.get('/patients', { params }),
   getById:           (id: string) => api.get(`/patients/${id}`),
   create:            (data: Partial<Patient>) => api.post('/patients', data),
   update:            (id: string, data: Partial<Patient>) => api.patch(`/patients/${id}`, data),
@@ -175,13 +185,14 @@ export const reportsApi = {
   create:        (data: Partial<Report>) => api.post('/reports', data),
   update:        (id: string, data: Partial<Report>) => api.patch(`/reports/${id}`, data),
   sign: (id: string, data: {
-    content_html:           string;
+    content_html?:          string;
     findings:               string;
     conclusion:             string;
     technique?:             string;
     recommendations?:       string;
-    doctor_name:            string;
-    doctor_crm:             string;
+    /** Legado: o backend assina com nome/CRM do CADASTRO do radiologista autenticado. */
+    doctor_name?:           string;
+    doctor_crm?:            string;
     doctor_institution?:    string;
     digital_certificate_sn?: string;
     digital_certificate_cn?: string;
