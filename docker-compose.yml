@@ -66,15 +66,19 @@ services:
 
   # ── RustFS (S3-compatible object storage) ────────────────────────────────
   rustfs:
-    image: rustfs/rustfs:latest
+    # Versão FIXA (nunca `latest`): um `pull` casual não pode trocar o motor de
+    # armazenamento de laudos/DICOM. Atualize de propósito, testando o restore.
+    image: rustfs/rustfs:1.0.0
     container_name: ris-rustfs
     restart: unless-stopped
     # Sem `ports`: S3 (9000) só pela rede interna (backend usa rustfs:9000).
     # Console 9001 era só dev — fechado no piloto. Para inspecionar buckets
     # pontualmente, reative com "127.0.0.1:9001:9001".
+    # Credenciais: UMA fonte só — as mesmas RUSTFS_ACCESS_KEY/SECRET_KEY do .env
+    # que o backend usa. Sem elas o compose recusa subir (falha cedo).
     environment:
-      RUSTFS_ACCESS_KEY: ${RUSTFS_LOGIN}
-      RUSTFS_SECRET_KEY: ${RUSTFS_PASS}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?defina RUSTFS_ACCESS_KEY no .env}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?defina RUSTFS_SECRET_KEY no .env}
       RUSTFS_VOLUMES:    /data
       RUSTFS_CONSOLE_ENABLE: "true"
     volumes:
@@ -82,7 +86,9 @@ services:
 
   # ── Orthanc DICOM server ─────────────────────────────────────────────────
   orthanc:
-    image: jodogne/orthanc-plugins
+    # Versão FIXA (nunca `latest`): mudança de versão do Orthanc pode alterar o
+    # formato do índice/plugins. Atualize de propósito.
+    image: jodogne/orthanc-plugins:1.12.11
     container_name: ris-orthanc
     restart: unless-stopped
     ports:
