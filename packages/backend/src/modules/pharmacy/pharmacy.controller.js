@@ -158,16 +158,87 @@ async function listDispensations(req, res) {
   return success(res, rows);
 }
 
+// Quantidade numérica prescrita ("12", "12 comprimidos", "1,5") → número; texto livre ("1 caixa") → null.
+function prescribedQty(text) {
+  const m = /^\s*(\d+(?:[.,]\d+)?)/.exec(String(text ?? ''));
+  return m ? Number(m[1].replace(',', '.')) : null;
+}
+
+/**
+ * Impede dispensar a mesma receita várias vezes (baixaria o estoque em dobro): a receita precisa
+ * estar ASSINADA e do mesmo paciente; por item, (já dispensado + novo) não pode passar do
+ * prescrito. Receita com quantidade em texto livre só aceita a 1ª dispensação. Exceder exige
+ * `override` explícito + motivo (fica na auditoria). Roda dentro da transação, com a receita
+ * travada (FOR UPDATE) para duas dispensações simultâneas não passarem juntas.
+ */
+async function assertDispensable(client, { patient_id, prescription_id, items, override, override_reason }) {
+  const wantsItems = items.some((i) => i.prescription_item_id);
+  if (!prescription_id) {
+    if (wantsItems) throw new AppError('Itens de receita exigem o prescription_id', 422, 'PRESCRIPTION_REQUIRED');
+    return { overridden: [] };
+  }
+  const { rows: rx } = await client.query(
+    `SELECT id, patient_id, status FROM ehr.prescriptions WHERE id = $1 FOR UPDATE`, [prescription_id]);
+  if (!rx.length) throw new NotFoundError('Receita');
+  if (String(rx[0].patient_id) !== String(patient_id))
+    throw new AppError('A receita não pertence a este paciente', 422, 'PRESCRIPTION_MISMATCH');
+  if (rx[0].status !== 'signed')
+    throw new AppError(rx[0].status === 'cancelled' ? 'Receita cancelada — não pode ser dispensada' : 'Receita ainda não assinada pelo médico', 422, 'PRESCRIPTION_NOT_SIGNED');
+
+  const { rows: pItems } = await client.query(
+    `SELECT id, drug_name, quantity FROM ehr.prescription_items WHERE prescription_id = $1`, [prescription_id]);
+  const byId = new Map(pItems.map((i) => [i.id, i]));
+  const { rows: done } = await client.query(
+    `SELECT di.prescription_item_id AS id, COALESCE(SUM(di.quantity), 0) AS qty, COUNT(*)::int AS n
+       FROM ehr.dispensation_items di
+       JOIN ehr.dispensations d ON d.id = di.dispensation_id
+      WHERE d.prescription_id = $1 AND d.status <> 'cancelled' AND di.prescription_item_id IS NOT NULL
+      GROUP BY di.prescription_item_id`, [prescription_id]);
+  const already = new Map(done.map((r) => [r.id, { qty: Number(r.qty), n: r.n }]));
+
+  const asked = new Map();    // soma por item dentro desta mesma requisição
+  for (const it of items) {
+    if (!it.prescription_item_id) continue;
+    if (!byId.has(it.prescription_item_id))
+      throw new AppError(`"${it.drug_name}" não faz parte desta receita`, 422, 'ITEM_NOT_IN_PRESCRIPTION');
+    asked.set(it.prescription_item_id, (asked.get(it.prescription_item_id) || 0) + Number(it.quantity));
+  }
+
+  const exceeded = [];
+  for (const [itemId, qty] of asked) {
+    const pi = byId.get(itemId);
+    const prev = already.get(itemId) || { qty: 0, n: 0 };
+    const limit = prescribedQty(pi.quantity);
+    if (limit !== null ? prev.qty + qty > limit + 1e-9 : prev.n > 0) {
+      exceeded.push({
+        drug: pi.drug_name, prescribed: pi.quantity, already: prev.qty, requested: qty,
+      });
+    }
+  }
+  if (!exceeded.length) return { overridden: [] };
+
+  if (override === true && override_reason && override_reason.trim().length >= 5) return { overridden: exceeded };
+  const first = exceeded[0];
+  throw new AppError(
+    `Receita já dispensada: ${first.drug} — prescrito ${first.prescribed ?? '—'}, já dispensado ${first.already}, solicitado ${first.requested}. ` +
+    'Para dispensar além do prescrito, confirme e informe o motivo.',
+    422, 'ALREADY_DISPENSED', exceeded
+  );
+}
+
 // Dispensa medicamentos: cria a dispensação, baixa o estoque (movimento 'out')
 // para cada item com stock_id, tudo em transação. Itens sem stock_id (ex.: doação
 // externa ao estoque) são registrados sem baixa.
 async function dispense(req, res) {
   const unitId = scopeUnit(req, req.body);
   if (!unitId) throw new AppError('Unidade não definida para a dispensação', 400);
-  const { patient_id, prescription_id = null, encounter_id = null, notes = null, items } = req.body;
+  const { patient_id, prescription_id = null, encounter_id = null, notes = null, items,
+          override, override_reason } = req.body;
   if (!Array.isArray(items) || !items.length) throw new AppError('Informe ao menos um item', 400);
 
+  let overridden = [];
   const out = await db.transaction(async (client) => {
+    ({ overridden } = await assertDispensable(client, { patient_id, prescription_id, items, override, override_reason }));
     const head = await client.query(
       `INSERT INTO ehr.dispensations
          (patient_id, encounter_id, prescription_id, health_unit_id, notes, dispensed_by)
@@ -212,7 +283,10 @@ async function dispense(req, res) {
     }
     return { id: dispId, created_at: head.rows[0].created_at };
   });
-  await logPharmacy(req, 'PHARMACY_DISPENSE', out.id, { patient_id, prescription_id, count: items.length });
+  await logPharmacy(req, 'PHARMACY_DISPENSE', out.id, {
+    patient_id, prescription_id, count: items.length,
+    ...(overridden.length ? { override: true, override_reason, exceeded: overridden } : {}),
+  });
   return created(res, out, 'Dispensação registrada');
 }
 

@@ -70,6 +70,9 @@ router.post('/dispensations',
     encounter_id: uuid.optional(),
     notes: z.string().max(500).optional(),
     health_unit_id: uuid.optional(),
+    // Dispensar além do prescrito / repetir a dispensação: confirmação explícita + motivo (auditado)
+    override: z.boolean().optional(),
+    override_reason: z.string().max(300).optional(),
     items: z.array(z.object({
       prescription_item_id: uuid.optional(),
       stock_id: uuid.optional(),

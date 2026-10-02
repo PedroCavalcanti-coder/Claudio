@@ -226,7 +226,16 @@ function DispensarTab() {
       qc.invalidateQueries({ queryKey: ['pharm-disp'] });
       qc.invalidateQueries({ queryKey: ['pharm-stock-all'] });
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e, body) => {
+      const data = (e as any)?.response?.data;
+      if (data?.code === 'ALREADY_DISPENSED') {
+        // Receita já dispensada / excedente: só prossegue com confirmação explícita + motivo (auditado).
+        const reason = window.prompt(`${data.message}\n\nInforme o motivo para dispensar mesmo assim (mín. 5 caracteres) ou cancele:`);
+        if (reason && reason.trim().length >= 5) disp.mutate({ ...(body as object), override: true, override_reason: reason.trim() });
+        return;
+      }
+      toast.error(getErrorMessage(e));
+    },
   });
 
   const toggle = (itemId: string, drug: string) => setPicked((p) => {
