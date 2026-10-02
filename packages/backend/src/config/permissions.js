@@ -78,7 +78,7 @@ const ROLE_PERMISSIONS = {
     'appointments:read', 'appointments:create', 'appointments:walkin',
     'appointments:update', 'appointments:checkin', 'appointments:cancel',
     'availability:read', 'availability:manage', 'unit:manage',
-    'patients:read', 'patients:update', 'patients:history',
+    'patients:read', 'patients:create', 'patients:update', 'patients:history',
     'dicom:upload_patient',
     'reports:download',
     'consent:read', 'consent:sign',
@@ -161,7 +161,7 @@ const ROLE_PERMISSIONS = {
   ],
   // Enfermeiro — aplica medicação na unidade (MAR) + medições + leitura clínica
   nurse: [
-    'patients:read', 'patients:history',
+    'patients:read', 'patients:create', 'patients:history',
     'episode:manage', 'encounter:read', 'ehr:timeline',
     'vitals:read', 'vitals:write',
     'allergy:read', 'allergy:write', 'medication:read', 'problem:read',

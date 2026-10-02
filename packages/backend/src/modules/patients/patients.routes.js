@@ -74,7 +74,7 @@ router.get('/:id',
   controller.getById
 );
 
-// Apenas técnicos e admins podem cadastrar pacientes/agendamentos
+// Cadastro: recepção, técnicos, enfermagem e admin (papéis que acolhem o paciente)
 router.post('/',
   requirePermission('patients:create'),
   validate({ body: patientSchema }),

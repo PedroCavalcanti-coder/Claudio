@@ -1962,5 +1962,15 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS idx_appt_kind ON ris.appointments(appointment_kind, scheduled_at);
 
 -- =============================================================================
+-- 21. Correções pré-lançamento (auditoria 2026-10-02)
+-- =============================================================================
+
+-- 21.1 Status do paciente em consulta/teleconsulta ----------------------------
+-- O check-in clínico grava 'aguardando atendimento' em ris.patients.current_status;
+-- o valor não existia no enum (500 no check-in). Comando solto, fora de DO: o novo
+-- valor só pode ser USADO após o commit, então nada nesta migração o referencia.
+ALTER TYPE ris.patient_current_status ADD VALUE IF NOT EXISTS 'aguardando atendimento';
+
+-- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================

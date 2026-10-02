@@ -484,7 +484,7 @@ async function checkIn(req, res) {
         ticketNumber = t.rows[0].last_number;
       }
       const encType = ap.appointment_kind === 'teleconsultation' ? 'teleconsulta' : 'ambulatorial';
-      const enc = await client.query(
+      const encRes = await client.query(
         `INSERT INTO ehr.encounters
            (patient_id, professional_id, health_unit_id, appointment_id, encounter_type,
             status, flow_stage, chief_complaint_enc, assigned_doctor_id,
@@ -496,7 +496,7 @@ async function checkIn(req, res) {
           ap.reason ? enc.encrypt(ap.reason) : null, ap.assigned_doctor_id, ticketNumber, req.user.sub,
         ]
       );
-      await client.query(`UPDATE ris.appointments SET encounter_id = $1 WHERE id = $2`, [enc.rows[0].id, id]);
+      await client.query(`UPDATE ris.appointments SET encounter_id = $1 WHERE id = $2`, [encRes.rows[0].id, id]);
     }
 
     appointmentId = ap.id;
