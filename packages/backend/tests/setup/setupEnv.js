@@ -26,3 +26,4 @@ Object.assign(process.env, {
   RATE_LIMIT_MAX: '100000',
   LOG_LEVEL: 'error',
 });
+process.env.ORTHANC_WEBHOOK_SECRET = 'test-webhook-secret-0123456789';

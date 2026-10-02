@@ -21,6 +21,8 @@ const PERMISSIONS = [
   'patients:delete', 'patients:export', 'patients:merge',
   // Estudos / PACS
   'studies:read', 'studies:stream', 'studies:upload', 'studies:capture', 'studies:replicate',
+  // Conciliação: vincular a paciente os estudos do equipamento sem agendamento correspondente
+  'studies:reconcile',
   'dicom:upload', 'dicom:upload_patient', 'dicom:view', 'dicom:admin',
   // Laudos
   'reports:read', 'reports:create', 'reports:update', 'reports:sign',
@@ -94,7 +96,7 @@ const ROLE_PERMISSIONS = {
     'appointments:read', 'appointments:walkin',
     'worklist:read', 'availability:read',
     'patients:read', 'patients:create',
-    'studies:read', 'studies:stream', 'studies:upload', 'studies:capture',
+    'studies:read', 'studies:stream', 'studies:upload', 'studies:capture', 'studies:reconcile',
     'dicom:upload', 'dicom:upload_patient',
     'reports:download',
     'procedures:manage', 'exam_notes:manage',

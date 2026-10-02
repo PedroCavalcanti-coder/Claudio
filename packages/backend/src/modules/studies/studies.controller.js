@@ -11,6 +11,14 @@ const uploadSession = require('../../services/uploadSession');
 const { notify } = require('../../services/notifications');
 const { success, created, paginated } = require('../../utils/response');
 const { NotFoundError, AppError } = require('../../utils/errors');
+// Replicação Orthanc→RustFS, sincronização de séries/instâncias e aviso ao paciente
+// são compartilhados com a ingestão automática (C-STORE do equipamento).
+const {
+  replicateInstanceToRustfs: _replicateInstanceToRustfs,
+  syncInstancesFromOrthanc:  _syncInstancesFromOrthanc,
+  notifyUploadComplete:      _notifyUploadComplete,
+  ingestOrthancStudy,
+} = require('../../services/dicomIngest');
 
 // Tamanho de bloco é uma sugestão ao cliente, não um limite rígido do servidor
 const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
@@ -72,6 +80,69 @@ async function list(req, res) {
   }));
 
   return paginated(res, { data, total: parseInt(countRes.rows[0].count), page, limit });
+}
+
+// ── Conciliação: estudos do equipamento sem agendamento/paciente correspondente ──
+async function listUnmatched(req, res) {
+  const status = ['pending', 'matched', 'discarded'].includes(req.query.status) ? req.query.status : 'pending';
+  const { rows } = await db.query(
+    `SELECT id, orthanc_study_id, study_instance_uid, accession_number, dicom_patient_name_enc,
+            dicom_patient_id_enc, modality_type, study_description, study_date, number_of_instances,
+            reason, status, matched_study_id, received_at, resolved_at
+       FROM pacs.unmatched_studies
+      WHERE status = $1
+      ORDER BY received_at DESC
+      LIMIT 200`, [status]);
+  return success(res, rows.map((r) => ({
+    ...r,
+    dicom_patient_name: enc.safeDecrypt(r.dicom_patient_name_enc),
+    dicom_patient_id:   enc.safeDecrypt(r.dicom_patient_id_enc),
+    dicom_patient_name_enc: undefined,
+    dicom_patient_id_enc:   undefined,
+  })));
+}
+
+// Vincula um estudo órfão a um paciente (e, opcionalmente, a um agendamento de imagem dele).
+async function matchUnmatched(req, res) {
+  const { patient_id, appointment_id } = req.body;
+  const { rows } = await db.query(
+    `SELECT id, orthanc_study_id, status FROM pacs.unmatched_studies WHERE id = $1`, [req.params.id]);
+  if (!rows.length) throw new NotFoundError('Estudo pendente de conciliação');
+  if (rows[0].status !== 'pending') throw new AppError('Este estudo já foi resolvido', 409, 'ALREADY_RESOLVED');
+
+  const { rows: pt } = await db.query(`SELECT id FROM ris.patients WHERE id = $1 AND is_active = TRUE`, [patient_id]);
+  if (!pt.length) throw new NotFoundError('Paciente');
+  if (appointment_id) {
+    const { rows: ap } = await db.query(
+      `SELECT id FROM ris.appointments WHERE id = $1 AND patient_id = $2 AND appointment_kind = 'imaging'`,
+      [appointment_id, patient_id]);
+    if (!ap.length) throw new AppError('Agendamento não pertence a este paciente (ou não é de imagem)', 422, 'APPOINTMENT_MISMATCH');
+  }
+
+  const result = await ingestOrthancStudy(rows[0].orthanc_study_id, {
+    patientId: patient_id, appointmentId: appointment_id ?? null, resolvedBy: req.user.sub,
+  });
+  if (result.outcome === 'busy') throw new AppError('Estudo em processamento; tente novamente em instantes', 409, 'BUSY');
+
+  await audit.log({
+    ...audit.fromRequest(req),
+    action: 'STUDY_RECONCILED', resourceType: 'study', resourceId: result.studyId ?? null,
+    details: { unmatched_id: req.params.id, patient_id, appointment_id: appointment_id ?? null },
+  });
+  return success(res, { study_id: result.studyId, outcome: result.outcome }, 'Estudo vinculado ao paciente');
+}
+
+async function discardUnmatched(req, res) {
+  const { rowCount } = await db.query(
+    `UPDATE pacs.unmatched_studies
+        SET status = 'discarded', resolved_by = $2, resolved_at = NOW(), updated_at = NOW(),
+            reason = COALESCE($3, reason)
+      WHERE id = $1 AND status = 'pending'`,
+    [req.params.id, req.user.sub, req.body?.reason ?? null]);
+  if (!rowCount) throw new NotFoundError('Estudo pendente de conciliação');
+  await audit.log({ ...audit.fromRequest(req), action: 'STUDY_RECONCILE_DISCARDED', resourceType: 'study',
+    resourceId: null, details: { unmatched_id: req.params.id, reason: req.body?.reason ?? null } });
+  return success(res, { id: req.params.id }, 'Estudo descartado da fila (permanece no Orthanc)');
 }
 
 // Priors: paciente é global entre unidades, então o radiologista pode comparar com exames de outras unidades
@@ -248,47 +319,6 @@ async function uploadComplete(req, res) {
   return success(res, { id, status: 'complete', upload_completed_at: new Date() }, 'Estudo marcado como completo');
 }
 
-async function _notifyUploadComplete(studyId, study) {
-  await db.query(
-    `INSERT INTO ris.patient_notifications
-       (patient_id, type, title, body, resource_type, resource_id)
-     VALUES ($1, 'IMAGES_READY', 'Imagens disponíveis', $2, 'study', $3)`,
-    [
-      study.patient_id,
-      'Suas imagens já estão disponíveis no portal. O laudo está sendo preparado.',
-      studyId,
-    ]
-  );
-
-  // Envio de e-mail simulado — não há integração SMTP/SendGrid real neste ambiente
-  logger.info('EMAIL (simulado) → paciente: imagens disponíveis', {
-    patientId: study.patient_id,
-    studyId,
-    modality:  study.modality_type,
-  });
-
-  if (study.appointment_id) {
-    const { rows } = await db.query(
-      `SELECT requesting_user_id, proc.name AS procedure_name
-       FROM ris.appointments a
-       JOIN ris.procedures proc ON proc.id = a.procedure_id
-       WHERE a.id = $1 AND a.requesting_user_id IS NOT NULL`,
-      [study.appointment_id]
-    );
-    if (rows.length) {
-      const { createNotification } = require('../notifications/notifications.routes');
-      await createNotification({
-        userId:       rows[0].requesting_user_id,
-        type:         'IMAGES_READY',
-        title:        'Upload DICOM concluído',
-        body:         `Imagens de ${rows[0].procedure_name} foram recebidas e estão prontas para laudo.`,
-        resourceType: 'study',
-        resourceId:   studyId,
-      });
-    }
-  }
-}
-
 // Helpers de upload compartilhados entre upload direto e upload em blocos
 async function _loadUploadAppointment(appointment_id) {
   const { rows: apRows } = await db.query(
@@ -310,31 +340,6 @@ async function _loadUploadAppointment(appointment_id) {
     );
   }
   return appt;
-}
-
-// Sem esta cópia, o DICOM viveria só no volume SQLite local do Orthanc, sem réplica durável.
-// Se a replicação falhar, cai no fallback 'orthanc:<id>' — nada quebra, só fica menos durável.
-async function _replicateInstanceToRustfs(orthancInstanceId, studyUID, seriesUid, sopUid, fileSize) {
-  const key = `pacs-dicom/${studyUID}/${seriesUid}/${sopUid}.dcm`;
-  try {
-    if (!(await storage.exists(storage.BUCKETS.DICOM, key))) {
-      const fileResp = await orthanc.get(`/instances/${orthancInstanceId}/file`, {
-        responseType: 'stream',
-        timeout: 120_000,
-      });
-      await storage.upload(
-        storage.BUCKETS.DICOM, key, fileResp.data, 'application/dicom',
-        { studyUID, seriesUID: seriesUid, sopUID: sopUid },
-        Number(fileSize) || undefined,
-      );
-    }
-    return key;
-  } catch (err) {
-    logger.warn('Replicação RustFS falhou — mantendo cópia no Orthanc', {
-      orthancInstanceId, error: err.message,
-    });
-    return `orthanc:${orthancInstanceId}`;
-  }
 }
 
 // Não escreve a resposta HTTP — apenas retorna o resultado, para ser reusada por upload direto e em blocos.
@@ -502,8 +507,8 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
         study_date, study_time, modality_type, status, display_status,
         number_of_series, number_of_instances, upload_completed_at,
         health_unit_id, equipment_id, room_id, technician_user_id, operator_notes,
-        performing_physician, exam_quality)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'complete','in_report',$8,$9,NOW(),$10,$11,$12,$13,$14,$15,$16)
+        performing_physician, exam_quality, orthanc_study_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'complete','in_report',$8,$9,NOW(),$10,$11,$12,$13,$14,$15,$16,$17)
      ON CONFLICT (study_instance_uid) DO UPDATE SET
        appointment_id      = EXCLUDED.appointment_id,
        status              = 'complete',
@@ -520,6 +525,7 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
        operator_notes      = COALESCE(EXCLUDED.operator_notes,      pacs.studies.operator_notes),
        performing_physician= COALESCE(EXCLUDED.performing_physician, pacs.studies.performing_physician),
        exam_quality        = COALESCE(EXCLUDED.exam_quality,        pacs.studies.exam_quality),
+       orthanc_study_id    = COALESCE(EXCLUDED.orthanc_study_id,    pacs.studies.orthanc_study_id),
        updated_at          = NOW()
      RETURNING id, study_instance_uid, status, created_at`,
     [
@@ -539,6 +545,7 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
       effectiveOperatorNotes,
       effectivePhysician,
       effectiveExamQuality,
+      [...orthancStudyIds][0] ?? null,
     ]
   );
   const study = studyRows[0];
@@ -633,6 +640,8 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
     `UPDATE ris.appointments SET status = 'in_progress', updated_at = NOW() WHERE id = $1`,
     [appointment_id]
   );
+  // Exame recebido: a entrada na worklist do equipamento deixa de fazer sentido.
+  require('../../services/mwl.service').removeWorklist(appointment_id).catch(() => {});
 
   await audit.log({
     ...audit.fromRequest(req),
@@ -896,114 +905,6 @@ async function replicatePending(req, res) {
 
 // ── Helper: sincroniza pacs.series/pacs.instances a partir do Orthanc ────────
 // Usado quando pacs.instances está vazio para um estudo já existente no Orthanc.
-async function _syncInstancesFromOrthanc(studyDbId, studyUID, defaultModality) {
-  // 1. Busca o estudo no Orthanc pelo StudyInstanceUID
-  const findRes = await orthanc.post('/tools/find', {
-    Level: 'Study',
-    Query: { StudyInstanceUID: studyUID },
-    Expand: false,
-  });
-  const orthancStudyIds = findRes.data ?? [];
-  if (!orthancStudyIds.length) {
-    logger.warn('Estudo não encontrado no Orthanc para lazy sync', { studyUID });
-    return [];
-  }
-
-  const syncedInstances = [];
-
-  for (const orthancStudyId of orthancStudyIds) {
-    const studyMeta = (await orthanc.get(`/studies/${orthancStudyId}`)).data;
-    const seriesIds = studyMeta.Series ?? [];
-
-    for (const orthancSeriesId of seriesIds) {
-      const seriesMeta = (await orthanc.get(`/series/${orthancSeriesId}`)).data;
-      const sTags      = seriesMeta.MainDicomTags ?? {};
-
-      const seriesUid  = sTags.SeriesInstanceUID ?? `auto.${orthancSeriesId}`;
-      const seriesNum  = parseInt(sTags.SeriesNumber, 10) || null;
-      const modality   = sTags.Modality || defaultModality;
-      const seriesDesc = sTags.SeriesDescription || null;
-
-      // Upsert série
-      const { rows: seriesDbRows } = await db.query(
-        `INSERT INTO pacs.series
-           (study_id, series_instance_uid, series_number, modality, series_description)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (series_instance_uid) DO UPDATE SET
-           study_id      = EXCLUDED.study_id,
-           series_number = EXCLUDED.series_number
-         RETURNING id`,
-        [studyDbId, seriesUid, seriesNum, modality, seriesDesc]
-      );
-      const seriesDbId = seriesDbRows[0].id;
-
-      // Instâncias
-      const instanceIds = seriesMeta.Instances ?? [];
-      for (const orthancInstanceId of instanceIds) {
-        const instMeta  = (await orthanc.get(`/instances/${orthancInstanceId}`)).data;
-        const iTags     = instMeta.MainDicomTags ?? {};
-        const sopUid    = iTags.SOPInstanceUID   ?? `auto.${orthancInstanceId}`;
-        const instNum   = parseInt(iTags.InstanceNumber, 10) || null;
-        const sopClass  = iTags.SOPClassUID      || null;
-        const cols      = parseInt(iTags.Columns, 10) || null;
-        const rowsVal   = parseInt(iTags.Rows, 10)    || null;
-        const framesVal = parseInt(iTags.NumberOfFrames, 10) || 1;
-        const fileSz    = instMeta.FileSize ?? 0;
-        // #29 — replica para o RustFS (durável). Fallback: 'orthanc:<id>'.
-        const storageKey = await _replicateInstanceToRustfs(
-          orthancInstanceId, studyUID, seriesUid, sopUid, fileSz,
-        );
-
-        const { rows: instDbRows } = await db.query(
-          `INSERT INTO pacs.instances
-             (series_id, study_id, sop_instance_uid, sop_class_uid, instance_number,
-              storage_key, file_size_bytes, columns, rows, number_of_frames)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-           ON CONFLICT (sop_instance_uid) DO UPDATE SET
-             storage_key = EXCLUDED.storage_key
-           RETURNING id`,
-          [seriesDbId, studyDbId, sopUid, sopClass, instNum,
-           storageKey, fileSz, cols, rowsVal, framesVal]
-        );
-
-        syncedInstances.push({
-          id:                  instDbRows[0].id,
-          series_id:           seriesDbId,
-          series_instance_uid: seriesUid,
-          series_number:       seriesNum,
-          sop_instance_uid:    sopUid,
-          instance_number:     instNum,
-          modality,
-        });
-      }
-    }
-  }
-
-  // Recalcula os contadores a partir das linhas REAIS. Os triggers de INSERT
-  // (increment_series_instance_count / increment_study_series_count) somam a
-  // cada inserção; sem este recálculo, um lazy sync repetido infla os números
-  // (ex.: 427→854). Recalcular deixa idempotente.
-  await db.query(
-    `UPDATE pacs.studies SET
-       number_of_instances = (SELECT COUNT(*) FROM pacs.instances WHERE study_id = $1),
-       number_of_series    = (SELECT COUNT(*) FROM pacs.series    WHERE study_id = $1),
-       updated_at = NOW()
-     WHERE id = $1`,
-    [studyDbId]
-  );
-  await db.query(
-    `UPDATE pacs.series se SET
-       number_of_instances = (SELECT COUNT(*) FROM pacs.instances i WHERE i.series_id = se.id)
-     WHERE se.study_id = $1`,
-    [studyDbId]
-  );
-
-  logger.info('Lazy sync do Orthanc concluído', {
-    studyUID, studyDbId, instances: syncedInstances.length,
-  });
-  return syncedInstances;
-}
-
 // Listagem de instâncias por study_instance_uid (para OrthoVis)
 // Adiciona Cross-Origin-Resource-Policy para permitir fetch cross-origin no viewer
 async function listInstances(req, res) {
@@ -1196,7 +1097,7 @@ async function uploadSecondaryCapture(req, res) {
   }, 'Captura enviada ao PACS');
 }
 
-module.exports = { list, pending, getById, priors, series, streamInstance, uploadComplete, uploadDicom,
+module.exports = { listUnmatched, matchUnmatched, discardUnmatched, list, pending, getById, priors, series, streamInstance, uploadComplete, uploadDicom,
                    uploadInit, uploadChunk, uploadFinalize, uploadAbort,
                    replicationStatus, replicatePending,
                    listInstances, uploadSecondaryCapture };

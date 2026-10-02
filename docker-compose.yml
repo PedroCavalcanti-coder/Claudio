@@ -84,6 +84,17 @@ services:
     volumes:
       - rustfs-data:/data
 
+  # ── Permissões do volume de worklists ────────────────────────────────────
+  # O volume nasce root:root; o backend roda como usuário não-root (uid 10001) e
+  # precisa gravar os .wl. Roda uma vez e sai (o Orthanc só lê).
+  volumes-init:
+    image: busybox:1.36
+    container_name: ris-volumes-init
+    restart: "no"
+    command: ["sh", "-c", "chown 10001:10001 /worklists && chmod 755 /worklists"]
+    volumes:
+      - orthanc-worklists:/worklists
+
   # ── Orthanc DICOM server ─────────────────────────────────────────────────
   orthanc:
     # Versão FIXA (nunca `latest`): mudança de versão do Orthanc pode alterar o
@@ -96,9 +107,16 @@ services:
       - "4242:4242"             # DICOM C-STORE — ABERTO na LAN (equipamentos enviam)
     environment:
       ORTHANC_NAME: OrthancRisPacs
+      # Segredo do webhook Orthanc→backend (orthanc.json: "Secret": "${ORTHANC_WEBHOOK_SECRET}")
+      ORTHANC_WEBHOOK_SECRET: ${ORTHANC_WEBHOOK_SECRET:?defina ORTHANC_WEBHOOK_SECRET no .env}
     volumes:
       - ./infra/orthanc/orthanc-config:/etc/orthanc:ro
       - orthanc-data:/var/lib/orthanc/db
+      # Worklist DICOM (MWL): o backend grava os .wl, o plugin Worklists do Orthanc os serve.
+      - orthanc-worklists:/var/lib/orthanc/worklists
+    depends_on:
+      volumes-init:
+        condition: service_completed_successfully
 
   # ── Backend API ──────────────────────────────────────────────────────────
   backend:
@@ -112,6 +130,8 @@ services:
       - "127.0.0.1:3000:3000"
     env_file:
       - .env
+    volumes:
+      - orthanc-worklists:/var/lib/orthanc/worklists
     environment:
       # Banco LOCAL — sobrescreve o DATABASE_URL do .env (que pode apontar p/ Neon).
       # Hostname `postgres` = nome do serviço na rede interna do compose.
@@ -133,6 +153,8 @@ services:
         condition: service_started
       orthanc:
         condition: service_started
+      volumes-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -166,3 +188,4 @@ volumes:
   redis-data:
   rustfs-data:
   orthanc-data:
+  orthanc-worklists:

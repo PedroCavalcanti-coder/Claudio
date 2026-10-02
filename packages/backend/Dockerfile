@@ -32,7 +32,8 @@ RUN apk add --no-cache \
       font-noto-emoji
 
 # Usuário não-root pra segurança
-RUN addgroup -S app && adduser -S app -G app
+# uid FIXO (10001): o volume de worklists é compartilhado com o Orthanc e recebe chown para este uid.
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
 
 ENV NODE_ENV=production \
     PORT=3000 \
@@ -46,7 +47,7 @@ COPY --chown=app:app scripts     ./scripts
 COPY --chown=app:app package.json ./
 
 # Cria diretório de logs writable pelo usuário não-root
-RUN mkdir -p /app/logs && chown -R app:app /app/logs
+RUN mkdir -p /app/logs /var/lib/orthanc/worklists && chown -R app:app /app/logs /var/lib/orthanc/worklists
 
 USER app
 

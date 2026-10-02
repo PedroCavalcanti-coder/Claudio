@@ -139,6 +139,7 @@ function decryptPatientFields(row) {
 module.exports = {
   encrypt,
   decrypt,
+  safeDecrypt,
   searchHash,
   integrityHash,
   normalizeCpf,

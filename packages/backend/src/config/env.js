@@ -72,6 +72,9 @@ const envSchema = z.object({
   ORTHANC_URL:           z.string().default('http://localhost:8042'),
   ORTHANC_USER:          z.string().default('orthanc'),
   ORTHANC_PASS:          z.string().default('orthanc'),
+  // Segredo compartilhado Orthanc→backend (header X-Webhook-Secret do webhook de estudos
+  // recebidos). Em produção o webhook fica DESLIGADO (401) enquanto não for definido.
+  ORTHANC_WEBHOOK_SECRET: z.string().min(16, 'ORTHANC_WEBHOOK_SECRET deve ter 16+ caracteres').optional(),
 
   // Cada sessão de upload em blocos grava seus .part aqui antes de enviar ao Orthanc.
   UPLOAD_TMP_DIR:        z.string().default('/tmp/ris-uploads'),

@@ -27,20 +27,35 @@ function accessionFor(appointmentId) {
 }
 const wlPath = (accession) => path.join(env.MWL_DIR, `${accession}.wl`);
 
+// Data/hora da worklist no FUSO LOCAL (SCHEDULE_TZ_OFFSET, ex.: -03:00). Formatar em UTC faria
+// um agendamento às 21:30 (-03:00) aparecer no equipamento como 00:30 do dia SEGUINTE.
+function tzOffsetMinutes() {
+  const m = /^([+-])(\d{2}):(\d{2})$/.exec(env.SCHEDULE_TZ_OFFSET || '+00:00');
+  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0;
+}
+const toLocal = (d) => new Date(new Date(d).getTime() + tzOffsetMinutes() * 60_000);
 function dicomDate(d) {
   if (!d) return '';
-  const dt = new Date(d);
+  const dt = toLocal(d);
   return `${dt.getUTCFullYear()}${String(dt.getUTCMonth()+1).padStart(2,'0')}${String(dt.getUTCDate()).padStart(2,'0')}`;
 }
 function dicomTime(d) {
   if (!d) return '';
-  const dt = new Date(d);
+  const dt = toLocal(d);
   return `${String(dt.getUTCHours()).padStart(2,'0')}${String(dt.getUTCMinutes()).padStart(2,'0')}${String(dt.getUTCSeconds()).padStart(2,'0')}`;
 }
 // '2.25.<uint>' — UID derivado de bytes aleatórios (OID raiz 2.25, sem registro).
 function genUID() {
   const n = BigInt('0x' + crypto.randomBytes(12).toString('hex'));
   return `2.25.${n.toString()}`;
+}
+
+// PN do DICOM = Sobrenome^Nome^Meio. Nome livre do cadastro ("Maria da Silva") → "Silva^Maria^da".
+function dicomPersonName(full) {
+  const parts = String(full).trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return parts[0] ?? '';
+  const family = parts[parts.length - 1];
+  return [family, ...parts.slice(0, -1)].join('^');
 }
 
 /**
@@ -62,7 +77,7 @@ async function writeWorklist(appointmentId) {
   if (!rows.length) { logger.warn('MWL: agendamento não encontrado', { appointmentId }); return null; }
   const r = rows[0];
 
-  const patientName = (enc.decrypt(r.name_encrypted) ?? 'UNKNOWN').replace(/ /g, '^'); // SOBRENOME^NOME
+  const patientName = dicomPersonName(enc.decrypt(r.name_encrypted) ?? 'UNKNOWN');
   const accession   = accessionFor(r.id);
   const modality    = r.modality_type ?? 'OT';
   const aeTitle     = r.dicom_ae_title ?? 'UNKNOWN_AE';
@@ -110,9 +125,41 @@ async function removeWorklist(appointmentId) {
   }
 }
 
+/**
+ * Faxina: remove .wl de agendamentos que não estão mais abertos (cancelados, concluídos,
+ * faltosos, exame já recebido) ou muito antigos. Rede de segurança — o fluxo normal já
+ * remove no cancelamento/recebimento do estudo. Retorna quantos arquivos removeu.
+ */
+async function cleanupWorklists({ maxAgeDays = 2 } = {}) {
+  let files;
+  try { files = (await fsp.readdir(env.MWL_DIR)).filter((f) => f.endsWith('.wl')); }
+  catch (err) { if (err.code === 'ENOENT') return 0; throw err; }
+  if (!files.length) return 0;
+  const accessions = files.map((f) => f.slice(0, -3));
+  const { rows } = await db.query(
+    `SELECT upper(substr(replace(id::text, '-', ''), 1, 16)) AS acc
+       FROM ris.appointments
+      WHERE upper(substr(replace(id::text, '-', ''), 1, 16)) = ANY($1)
+        AND status IN ('scheduled','confirmed','checked_in')
+        AND scheduled_at > NOW() - make_interval(days => $2)`,
+    [accessions, maxAgeDays]);
+  const keep = new Set(rows.map((r) => r.acc));
+  let removed = 0;
+  for (const acc of accessions) {
+    if (keep.has(acc)) continue;
+    try { await fsp.unlink(wlPath(acc)); removed++; } catch (err) { if (err.code !== 'ENOENT') logger.warn('MWL: faxina falhou', { acc, error: err.message }); }
+  }
+  if (removed) logger.info('MWL: worklists obsoletas removidas', { removed });
+  return removed;
+}
+
 module.exports = {
   writeWorklist,
   removeWorklist,
+  cleanupWorklists,
+  dicomDate,
+  dicomTime,
+  dicomPersonName,
   sendWorklistEntry: writeWorklist,   // alias de compatibilidade (check-in já chama isto)
   accessionFor,
   _wlPath: wlPath,

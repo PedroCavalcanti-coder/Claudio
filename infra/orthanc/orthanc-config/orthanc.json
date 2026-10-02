@@ -1,14 +1,44 @@
 {
-  "Name": "MeuOrthanc",
+  "Name": "OrthancRisPacs",
 
-  "// — Storage local persistente (montado via volume nomeado 'orthanc-data')": "",
+  "// — Storage local persistente (volume nomeado 'orthanc-data')": "",
   "StorageDirectory": "/var/lib/orthanc/db",
   "IndexDirectory":   "/var/lib/orthanc/db",
 
-  "DicomModalities":         {},
   "HttpPort":                8042,
   "DicomPort":               4242,
+  "DicomAet":                "ORTHANC",
   "AuthenticationEnabled":   false,
   "RemoteAccessAllowed":     true,
-  "OrthancExplorerEnabled":  true
+  "OrthancExplorerEnabled":  true,
+
+  "// — C-STORE: aceita envio de qualquer equipamento da LAN (sem cadastrar AE a AE)": "",
+  "DicomAlwaysAllowStore":   true,
+  "// — C-FIND (worklist): sem isto o Orthanc REJEITA consultas de AE não listados em DicomModalities. Restrinja a porta 4242 por firewall aos IPs dos equipamentos (ver docs/implantacao-checklist.md)": "",
+  "DicomAlwaysAllowFind":    true,
+  "DicomCheckCalledAet":     false,
+  "DicomModalities":         {},
+
+  "// — Estudo 'estável' = 60s sem novas instâncias → dispara OnStableStudy (ris-webhook.lua)": "",
+  "StableAge": 60,
+
+  "// — SEM isto nenhum plugin carrega (uma config montada em /etc/orthanc substitui a padrão)": "",
+  "Plugins": [
+    "/usr/share/orthanc/plugins",
+    "/usr/local/share/orthanc/plugins"
+  ],
+
+  "// — Modality Worklist: o backend grava os .wl no volume compartilhado 'orthanc-worklists'": "",
+  "Worklists": {
+    "Enable":         true,
+    "Database":       "/var/lib/orthanc/worklists",
+    "FilterIssuerAet": false
+  },
+
+  "// — Avisa o RIS quando um estudo enviado pelo equipamento fica estável": "",
+  "LuaScripts": ["/etc/orthanc/ris-webhook.lua"],
+  "RisWebhook": {
+    "Url":    "http://backend:3000/api/v1/dicom/webhook/orthanc",
+    "Secret": "${ORTHANC_WEBHOOK_SECRET}"
+  }
 }

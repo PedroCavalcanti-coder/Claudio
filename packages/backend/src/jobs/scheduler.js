@@ -9,6 +9,8 @@ const logger    = require('../config/logger');
 const { notify } = require('../services/notifications');
 const { createNotification } = require('../modules/notifications/notifications.routes');
 const uploadSession = require('../services/uploadSession');
+const { sweepOrthanc } = require('../services/dicomIngest');
+const mwl = require('../services/mwl.service');
 
 async function reminderTick() {
   const { rows } = await db.query(
@@ -112,7 +114,16 @@ function startSchedulers() {
   setTimeout(safe(uploadSession.sweepStale, 'uploadSweep'), 120_000);
   setInterval(safe(uploadSession.sweepStale, 'uploadSweep'), SWEEP_MS);
 
-  logger.info('⏰ Schedulers iniciados (lembretes 15min · SLA 30min · upload-sweep 1h)');
+  // Rede de segurança do C-STORE: estudos que estão no Orthanc mas o webhook perdeu
+  // (backend fora do ar no momento em que o estudo ficou estável).
+  const ORTHANC_SWEEP_MS = 10 * 60 * 1000;
+  setTimeout(safe(sweepOrthanc, 'orthancSweep'), 45_000);
+  setInterval(safe(sweepOrthanc, 'orthancSweep'), ORTHANC_SWEEP_MS);
+
+  setTimeout(safe(mwl.cleanupWorklists, 'mwlCleanup'), 150_000);
+  setInterval(safe(mwl.cleanupWorklists, 'mwlCleanup'), SWEEP_MS);
+
+  logger.info('⏰ Schedulers iniciados (lembretes 15min · SLA 30min · upload-sweep 1h · orthanc-sweep 10min)');
 }
 
 module.exports = { startSchedulers, reminderTick, slaTick };

@@ -5,8 +5,26 @@ const multer     = require('multer');
 const controller = require('./dicom.controller');
 const authenticate = require('../../middlewares/authenticate');
 const { requirePermission } = require('../../middlewares/authorize');
+const crypto = require('crypto');
+const env = require('../../config/env');
+const { AppError } = require('../../utils/errors');
 
 const router  = Router();
+
+function requireWebhookSecret(req, res, next) {
+  const expected = env.ORTHANC_WEBHOOK_SECRET;
+  if (!expected) {
+    if (env.NODE_ENV === 'production') return next(new AppError('Webhook desabilitado: defina ORTHANC_WEBHOOK_SECRET', 401, 'WEBHOOK_DISABLED'));
+    return next();   // dev/teste local sem segredo
+  }
+  const given = String(req.get('x-webhook-secret') || '');
+  const h = (v) => crypto.createHash('sha256').update(v).digest();
+  if (!crypto.timingSafeEqual(h(given), h(expected))) {
+    return next(new AppError('Segredo do webhook inválido', 401, 'WEBHOOK_UNAUTHORIZED'));
+  }
+  next();
+}
+
 const upload  = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 500 * 1024 * 1024, files: 500 }, // 500MB por arquivo, até 500 arquivos
@@ -17,8 +35,12 @@ const upload  = multer({
   },
 });
 
-// ── Webhook do Orthanc (sem auth JWT — protegido por IP no NGINX) ─────────────
-router.post('/webhook/orthanc', controller.orthancWebhook);
+// ── Webhook do Orthanc (sem JWT) ───────────────────────────────────────────────
+// Defesa em duas camadas: (1) o nginx NÃO expõe esta rota (o Orthanc fala direto com
+// backend:3000 pela rede interna do compose); (2) segredo compartilhado no header
+// X-Webhook-Secret, comparado em tempo constante. Sem segredo configurado, em produção
+// a rota responde 401 (fail-closed).
+router.post('/webhook/orthanc', requireWebhookSecret, controller.orthancWebhook);
 
 router.post('/upload',
   authenticate, requirePermission('dicom:upload'),

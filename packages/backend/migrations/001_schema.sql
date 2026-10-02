@@ -1971,6 +1971,42 @@ CREATE INDEX IF NOT EXISTS idx_appt_kind ON ris.appointments(appointment_kind, s
 -- valor só pode ser USADO após o commit, então nada nesta migração o referencia.
 ALTER TYPE ris.patient_current_status ADD VALUE IF NOT EXISTS 'aguardando atendimento';
 
+-- 21.2 Estudos que chegam do equipamento (C-STORE) ----------------------------
+-- O Orthanc avisa o backend (Lua OnStableStudy → webhook) e o RIS vincula o estudo
+-- ao agendamento pelo AccessionNumber da worklist ou ao paciente pelo PatientID.
+-- orthanc_study_id: id do estudo no Orthanc (varredura de segurança sabe o que já entrou).
+ALTER TABLE pacs.studies ADD COLUMN IF NOT EXISTS orthanc_study_id VARCHAR(64);
+CREATE INDEX IF NOT EXISTS idx_studies_orthanc ON pacs.studies(orthanc_study_id);
+
+-- 21.3 Fila de conciliação — estudo sem agendamento/paciente correspondente ----
+-- Nunca se cria paciente com CPF falso para "encaixar" um estudo: ele espera aqui
+-- até o técnico vincular a um paciente (ou descartar). Dados do DICOM são PII →
+-- nome e PatientID ficam cifrados.
+CREATE TABLE IF NOT EXISTS pacs.unmatched_studies (
+  id                     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  orthanc_study_id       VARCHAR(64)  NOT NULL,
+  study_instance_uid     VARCHAR(64)  NOT NULL,
+  accession_number       VARCHAR(64),
+  dicom_patient_name_enc BYTEA,
+  dicom_patient_id_enc   BYTEA,
+  modality_type          ris.modality_type,
+  study_description      VARCHAR(200),
+  study_date             DATE,
+  number_of_instances    INTEGER      NOT NULL DEFAULT 0,
+  reason                 TEXT,
+  status                 VARCHAR(12)  NOT NULL DEFAULT 'pending',
+  matched_study_id       UUID         REFERENCES pacs.studies(id) ON DELETE SET NULL,
+  resolved_by            UUID         REFERENCES auth.users(id)   ON DELETE SET NULL,
+  resolved_at            TIMESTAMPTZ,
+  received_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  created_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_unmatched_study_uid UNIQUE (study_instance_uid),
+  CONSTRAINT chk_unmatched_status CHECK (status IN ('pending', 'matched', 'discarded'))
+);
+CREATE INDEX IF NOT EXISTS idx_unmatched_status ON pacs.unmatched_studies(status, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_unmatched_orthanc ON pacs.unmatched_studies(orthanc_study_id);
+
 -- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================

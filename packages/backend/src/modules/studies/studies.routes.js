@@ -39,6 +39,22 @@ router.get('/dicom/:studyUID/instances',
   controller.listInstances
 );
 
+// ── Conciliação (estudos do equipamento sem agendamento/paciente) ─────────────
+// Declaradas ANTES de '/:id' para não serem capturadas pelo parâmetro.
+router.get('/unmatched',
+  requirePermission('studies:reconcile'),
+  validate({ query: z.object({ status: z.enum(['pending', 'matched', 'discarded']).optional() }) }),
+  controller.listUnmatched);
+router.post('/unmatched/:id/match',
+  requirePermission('studies:reconcile'),
+  validate({ params: schemas.uuidParam, body: z.object({
+    patient_id: z.string().uuid(), appointment_id: z.string().uuid().optional() }) }),
+  controller.matchUnmatched);
+router.post('/unmatched/:id/discard',
+  requirePermission('studies:reconcile'),
+  validate({ params: schemas.uuidParam, body: z.object({ reason: z.string().max(500).optional() }) }),
+  controller.discardUnmatched);
+
 // Listar estudos (pendentes de laudo)
 router.get('/',             requirePermission('studies:read'), validate({ query: listSchema }), controller.list);
 // Estudos aguardando laudo (view otimizada)
