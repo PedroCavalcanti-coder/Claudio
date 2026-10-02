@@ -1,9 +1,10 @@
+import IdentityPicker, { emptyIdentity, identityBody, identityValid, type CheckinIdentity } from '../../components/IdentityPicker';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle, ExternalLink, RefreshCw } from 'lucide-react';
 import { useOpenInViewer } from '../../utils/viewer';
 import { appointmentsApi } from '../../api/endpoints';
-import { Spinner, EmptyState, SectionHeader, Modal, Field } from '../../components/ui';
+import { Spinner, EmptyState, SectionHeader, Modal } from '../../components/ui';
 import { toast } from '../../components/ui/Toast';
 import { formatAge, modalityLabel, priorityBadge, priorityLabel, getErrorMessage } from '../../utils/format';
 
@@ -20,13 +21,12 @@ export default function WorklistPage() {
   });
 
   const checkInMut = useMutation({
-    mutationFn: ({ id, cpf, password }: { id: string; cpf: string; password: string }) => appointmentsApi.checkIn(id, { cpf, password }),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['worklist'] }); setCheckinTarget(null); toast.success('Check-in realizado'); },
+    mutationFn: ({ id, identity }: { id: string; identity: CheckinIdentity }) => appointmentsApi.checkIn(id, identityBody(identity)),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['worklist'] }); setCheckinTarget(null); setCheckinIdentity(emptyIdentity); toast.success('Check-in realizado'); },
     onError:    (e) => toast.error(getErrorMessage(e)),
   });
   const [checkinTarget, setCheckinTarget] = useState<null|{id:string,patient_name?:string}>(null);
-  const [checkinCpf, setCheckinCpf] = useState('');
-  const [checkinPassword, setCheckinPassword] = useState('');
+  const [checkinIdentity, setCheckinIdentity] = useState<CheckinIdentity>(emptyIdentity);
 
   const now = new Date();
   const items = (worklist ?? []) as any[];
@@ -89,7 +89,7 @@ export default function WorklistPage() {
           {['scheduled','confirmed'].includes(item.status) && (
             <button
               className="btn-primary flex-1 justify-center py-1.5 text-xs"
-              onClick={() => { setCheckinTarget({ id: item.appointment_id, patient_name: item.patient_name }); setCheckinCpf(''); setCheckinPassword(''); }}
+              onClick={() => { setCheckinTarget({ id: item.appointment_id, patient_name: item.patient_name }); setCheckinIdentity(emptyIdentity); }}
               disabled={checkInMut.isPending}
             >
               <CheckCircle size={12} /> Check-in
@@ -162,23 +162,11 @@ export default function WorklistPage() {
       {checkinTarget && (
         <Modal open onClose={() => setCheckinTarget(null)} title={`Check-in — ${checkinTarget.patient_name ?? ''}`} size="sm">
           <div className="space-y-3">
-            <p className="text-xs text-slate-500">
-              Confirme a identidade do paciente com o CPF e a senha do portal (a mesma usada no acesso do paciente).
-            </p>
-            <Field label="CPF do paciente">
-              <input className="input" value={checkinCpf} onChange={e => setCheckinCpf(e.target.value)}
-                placeholder="000.000.000-00"
-                onKeyDown={e => { if (e.key === 'Enter' && checkinCpf && checkinPassword) checkInMut.mutate({ id: checkinTarget.id, cpf: checkinCpf, password: checkinPassword }); }} />
-            </Field>
-            <Field label="Senha do portal">
-              <input type="password" className="input" value={checkinPassword} onChange={e => setCheckinPassword(e.target.value)}
-                placeholder="Senha"
-                onKeyDown={e => { if (e.key === 'Enter' && checkinCpf && checkinPassword) checkInMut.mutate({ id: checkinTarget.id, cpf: checkinCpf, password: checkinPassword }); }} />
-            </Field>
+            <IdentityPicker value={checkinIdentity} onChange={setCheckinIdentity} />
             <div className="flex gap-3 justify-end pt-2 border-t border-navy-700">
               <button className="btn-ghost" onClick={() => setCheckinTarget(null)}>Cancelar</button>
-              <button className="btn-primary" disabled={checkInMut.isPending || !checkinCpf || !checkinPassword}
-                onClick={() => checkInMut.mutate({ id: checkinTarget.id, cpf: checkinCpf, password: checkinPassword })}>
+              <button className="btn-primary" disabled={checkInMut.isPending || !identityValid(checkinIdentity)}
+                onClick={() => checkInMut.mutate({ id: checkinTarget.id, identity: checkinIdentity })}>
                 {checkInMut.isPending ? <Spinner size={14} /> : <><CheckCircle size={14} /> Confirmar Check-in</>}
               </button>
             </div>

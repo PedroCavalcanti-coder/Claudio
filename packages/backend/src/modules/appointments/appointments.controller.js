@@ -1,7 +1,6 @@
 const db    = require('../../config/database');
 const enc   = require('../../services/encryption');
 const audit = require('../../services/audit');
-const bcrypt = require('bcryptjs');
 const env   = require('../../config/env');
 const mwl   = require('../../services/mwl.service');
 const messaging = require('../../services/messaging');
@@ -369,21 +368,25 @@ async function update(req, res) {
   return success(res, { id }, 'Agendamento atualizado');
 }
 
+// Check-in = chegada do paciente + CONFERÊNCIA DE IDENTIDADE. Não cria conta do portal nem exige
+// senha: paciente só-CNS, idoso ou sem celular precisa ser atendido, e a recepção não pode ficar
+// bloqueada por senha esquecida. Conta do portal é opcional (botão "Portal" em Pacientes).
+// Identidade confirmada por CPF, CNS ou conferência visual de documento com foto.
 async function checkIn(req, res) {
   const { id } = req.params;
-  const { cpf, password } = req.body;
-
-  if (!cpf || !password) throw new AppError('CPF e senha são obrigatórios para o check-in', 422);
-
-  if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password))
-    throw new AppError('Senha fraca: mínimo 8 caracteres, 1 maiúscula e 1 número', 422);
+  const { cpf, cns, document_verified } = req.body;
+  const method = req.body.identity_verified_by
+    || (cpf ? 'cpf' : cns ? 'cns' : document_verified ? 'document' : null);
+  if (!method) {
+    throw new AppError('Confirme a identidade: informe CPF ou CNS, ou marque a conferência de documento com foto', 422, 'IDENTITY_REQUIRED');
+  }
 
   let appointmentId = id;
+  let portalActive = false;
 
-  // Transação — qualquer validação abaixo reverte também a criação da conta do portal.
   await db.transaction(async client => {
     const { rows } = await client.query(
-      `SELECT a.id, a.patient_id, a.status, a.modality_id, p.cpf_hash,
+      `SELECT a.id, a.patient_id, a.status, a.modality_id, p.cpf_hash, p.cns_hash,
               a.appointment_kind, a.assigned_doctor_id, a.encounter_id,
               a.health_unit_id, a.reason
        FROM ris.appointments a
@@ -397,63 +400,36 @@ async function checkIn(req, res) {
     if (!['scheduled', 'confirmed'].includes(ap.status))
       throw new AppError('Check-in não disponível para o status atual do agendamento', 422);
 
-    const cpfHash = enc.searchHash(cpf.replace(/[.\-]/g, '').trim());
-    if (cpfHash !== ap.cpf_hash)
-      throw new AppError('CPF não corresponde ao agendamento. Check-in cancelado.', 422);
-
-    const { rows: existingAccount } = await client.query(
-      `SELECT id, password_hash, is_active, failed_attempts, locked_until
-       FROM ris.patient_portal_accounts
-       WHERE patient_id = $1 FOR UPDATE`,
-      [ap.patient_id]
-    );
-
-    if (existingAccount.length) {
-      const account = existingAccount[0];
-
-      if (!account.is_active)
-        throw new AppError('Conta do portal inativa. Entre em contato com a recepção.', 401);
-      if (account.locked_until && new Date(account.locked_until) > new Date())
-        throw new AppError('Conta bloqueada temporariamente. Tente em 15 minutos.', 423);
-
-      const valid = await bcrypt.compare(password, account.password_hash);
-      if (!valid) {
-        // Incrementar tentativas falhas (não commitado se transação for revertida)
-        const attempts = (account.failed_attempts || 0) + 1;
-        const locked   = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-        await client.query(
-          `UPDATE ris.patient_portal_accounts
-           SET failed_attempts = $1, locked_until = $2
-           WHERE id = $3`,
-          [attempts, locked, account.id]
-        );
-        throw new AppError('Senha inválida. Check-in cancelado.', 401);
-      }
-
-      await client.query(
-        `UPDATE ris.patient_portal_accounts
-         SET failed_attempts = 0, locked_until = NULL, is_active = TRUE
-         WHERE id = $1`,
-        [account.id]
-      );
-    } else {
-      const hash = await bcrypt.hash(password, env.BCRYPT_ROUNDS || 12);
-      await client.query(
-        `INSERT INTO ris.patient_portal_accounts (patient_id, cpf_hash, password_hash)
-         VALUES ($1, $2, $3)`,
-        [ap.patient_id, cpfHash, hash]
-      );
+    if (method === 'cpf') {
+      if (!cpf) throw new AppError('Informe o CPF do paciente', 422, 'IDENTITY_REQUIRED');
+      if (!ap.cpf_hash) throw new AppError('Paciente sem CPF cadastrado — confira por CNS ou documento com foto', 422, 'NO_CPF_ON_FILE');
+      if (enc.searchHash(cpf.replace(/[.\-]/g, '').trim()) !== ap.cpf_hash)
+        throw new AppError('CPF não corresponde ao agendamento. Check-in cancelado.', 422, 'IDENTITY_MISMATCH');
+    } else if (method === 'cns') {
+      if (!cns) throw new AppError('Informe o CNS do paciente', 422, 'IDENTITY_REQUIRED');
+      if (!ap.cns_hash) throw new AppError('Paciente sem CNS cadastrado — confira por CPF ou documento com foto', 422, 'NO_CNS_ON_FILE');
+      if (enc.searchHash(String(cns).replace(/\D/g, '')) !== ap.cns_hash)
+        throw new AppError('CNS não corresponde ao agendamento. Check-in cancelado.', 422, 'IDENTITY_MISMATCH');
+    } else if (method === 'document') {
+      if (document_verified !== true)
+        throw new AppError('Confirme que o documento com foto foi conferido', 422, 'IDENTITY_REQUIRED');
     }
+
+    const { rows: acc } = await client.query(
+      `SELECT 1 FROM ris.patient_portal_accounts WHERE patient_id = $1 AND is_active = TRUE`, [ap.patient_id]);
+    portalActive = acc.length > 0;
 
     const { rowCount } = await client.query(
       `UPDATE ris.appointments
        SET status               = 'checked_in',
            checked_in_at        = NOW(),
            checked_in_by        = $1,
-           portal_access_granted = TRUE,
+           portal_access_granted = $3,
+           identity_verified_by = $4,
+           identity_verified_at = NOW(),
            updated_at           = NOW()
        WHERE id = $2 AND status IN ('scheduled', 'confirmed')`,
-      [req.user.sub, id]
+      [req.user.sub, id, portalActive, method]
     );
     if (!rowCount) throw new AppError('Check-in não foi possível', 422);
 
@@ -506,8 +482,8 @@ async function checkIn(req, res) {
       action:       audit.ACTIONS.CHECKIN,
       resourceType: 'appointment',
       resourceId:   id,
-      // Aceite dos Termos/LGPD no check-in (cria conta do portal) — prova auditável.
-      details:      { terms_accepted: req.body?.terms_accepted === true },
+      // Aceite dos Termos/LGPD + como a identidade foi conferida — prova auditável.
+      details:      { terms_accepted: req.body?.terms_accepted === true, identity_verified_by: method },
     });
 
     // Envio à worklist DICOM roda fora da transação — falha não deve reverter o check-in.
@@ -521,7 +497,8 @@ async function checkIn(req, res) {
   });
 
   setImmediate(() => notify('appointment.checked_in', { appointmentId }));
-  return success(res, { id: appointmentId, portal_access_granted: true }, 'Check-in realizado com sucesso');
+  return success(res, { id: appointmentId, portal_access_granted: portalActive, identity_verified_by: method },
+    'Check-in realizado com sucesso');
 }
 
 // Retorna status resumido do agendamento (acessível a qualquer usuário autenticado)

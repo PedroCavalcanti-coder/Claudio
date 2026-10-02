@@ -11,7 +11,7 @@ const { as, anon, uniqueCpf } = require('./helpers/api');
 // Lê a resposta como Buffer (PDF).
 const binary = (res, cb) => { const c = []; res.on('data', (d) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); };
 const cpf = uniqueCpf();
-const PASSWORD = 'Senha1234';
+let PASSWORD_PORTAL;
 let recep, doctor, nurse, admin;
 let patientId, appointmentId, encounterId, noteId, rxId, rxItemId, stockId;
 
@@ -49,7 +49,7 @@ describe('Consulta: do cadastro ao portal', () => {
   });
 
   it('check-in da consulta COM motivo abre o atendimento (P0-1, P0-2)', async () => {
-    const res = await recep.patch(`/appointments/${appointmentId}/checkin`, { cpf, password: PASSWORD, terms_accepted: true });
+    const res = await recep.patch(`/appointments/${appointmentId}/checkin`, { identity_verified_by: 'cpf', cpf, terms_accepted: true });
     expect(res.status).toBe(200);
     const { rows } = await db.query(
       `SELECT e.id, e.chief_complaint_enc, p.current_status
@@ -128,8 +128,11 @@ describe('Consulta: do cadastro ao portal', () => {
     expect(Number(rows[0].quantity)).toBe(88);
   });
 
-  it('paciente entra no portal e vê a receita', async () => {
-    const login = await anon().post('/patient-portal/login', { cpf, password: PASSWORD });
+  it('portal é opcional: a recepção libera o acesso e o paciente entra com a senha provisória', async () => {
+    const grant = await recep.post(`/patients/${patientId}/portal-access`, {});
+    expect(grant.status).toBe(201);
+    PASSWORD_PORTAL = grant.body.data.temp_password;
+    const login = await anon().post('/patient-portal/login', { cpf, password: PASSWORD_PORTAL });
     expect(login.status).toBe(200);
     const token = login.body.data.token;
     const rx = await anon().get('/patient-portal/prescriptions').set('X-Portal-Token', token);

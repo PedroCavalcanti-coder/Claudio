@@ -1,3 +1,4 @@
+import IdentityPicker, { emptyIdentity, identityBody, identityValid, type CheckinIdentity } from '../../components/IdentityPicker';
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Calendar, CheckCircle, XCircle, Search, ChevronDown, Printer } from 'lucide-react';
@@ -340,8 +341,7 @@ export default function AppointmentsPage() {
   const [cancelTarget, setCancelTarget]   = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason]   = useState('');
   const [checkinTarget, setCheckinTarget] = useState<null | { id: string; patient_name?: string }>(null);
-  const [checkinCpf, setCheckinCpf]       = useState('');
-  const [checkinPassword, setCheckinPassword] = useState('');
+  const [checkinIdentity, setCheckinIdentity] = useState<CheckinIdentity>(emptyIdentity);
   const [checkinError, setCheckinError]   = useState('');
   const [checkinAgreed, setCheckinAgreed] = useState(false);
 
@@ -361,11 +361,12 @@ export default function AppointmentsPage() {
   });
 
   const checkInMut = useMutation({
-    mutationFn: ({ id, cpf, password }: { id: string; cpf: string; password: string }) =>
-      appointmentsApi.checkIn(id, { cpf, password, terms_accepted: true }),
+    mutationFn: ({ id, identity }: { id: string; identity: CheckinIdentity }) =>
+      appointmentsApi.checkIn(id, { ...identityBody(identity), terms_accepted: true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appointments'] });
       setCheckinTarget(null);
+      setCheckinIdentity(emptyIdentity);
       setCheckinError('');
     },
     onError: (err: any) => setCheckinError(err.response?.data?.message ?? 'Erro no check-in'),
@@ -496,7 +497,7 @@ export default function AppointmentsPage() {
                       {['scheduled', 'confirmed'].includes(a.status) && (
                         <button
                           className="btn-ghost px-2 py-1 text-xs text-emerald-400 border-emerald-900/50"
-                          onClick={() => { setCheckinTarget({ id: a.id, patient_name: (a as any).patient_name }); setCheckinCpf(''); setCheckinPassword(''); setCheckinError(''); }}
+                          onClick={() => { setCheckinTarget({ id: a.id, patient_name: (a as any).patient_name }); setCheckinIdentity(emptyIdentity); setCheckinError(''); }}
                         >
                           <CheckCircle size={12} /> Check-in
                         </button>
@@ -533,23 +534,15 @@ export default function AppointmentsPage() {
       >
         <div className="space-y-3">
           {checkinError && <Alert message={checkinError} onClose={() => setCheckinError('')} />}
-          <Field label="CPF" required>
-            <input className="input" placeholder="000.000.000-00" value={checkinCpf}
-              onChange={e => setCheckinCpf(e.target.value)} />
-          </Field>
-          <Field label="Senha" required>
-            <input type="password" className="input"
-              placeholder="Mínimo 8 caracteres, 1 maiúscula, 1 número"
-              value={checkinPassword} onChange={e => setCheckinPassword(e.target.value)} />
-          </Field>
+          <IdentityPicker value={checkinIdentity} onChange={setCheckinIdentity} />
           <TermsCheckbox checked={checkinAgreed} onChange={setCheckinAgreed}
             label="O paciente leu e concorda com os" />
           <div className="flex gap-3 justify-end">
             <button className="btn-ghost" onClick={() => { setCheckinTarget(null); setCheckinAgreed(false); }}>Cancelar</button>
             <button
               className="btn-primary"
-              disabled={checkInMut.isPending || !checkinCpf || !checkinPassword || !checkinAgreed}
-              onClick={() => checkInMut.mutate({ id: checkinTarget!.id, cpf: checkinCpf, password: checkinPassword })}
+              disabled={checkInMut.isPending || !identityValid(checkinIdentity) || !checkinAgreed}
+              onClick={() => checkInMut.mutate({ id: checkinTarget!.id, identity: checkinIdentity })}
             >
               {checkInMut.isPending ? <Spinner size={14} /> : 'Confirmar Check-in'}
             </button>

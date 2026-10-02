@@ -52,7 +52,8 @@ export const appointmentsApi = {
   getById:  (id: string) => api.get(`/appointments/${id}`),
   create:   (data: Partial<Appointment>) => api.post('/appointments', data),
   update:   (id: string, data: Partial<Appointment>) => api.patch(`/appointments/${id}`, data),
-  checkIn:  (id: string, data?: { cpf: string; password: string; terms_accepted?: boolean }) => api.patch(`/appointments/${id}/checkin`, data),
+  checkIn:  (id: string, data: { identity_verified_by?: 'cpf' | 'cns' | 'document'; cpf?: string; cns?: string; document_verified?: boolean; terms_accepted?: boolean }) =>
+    api.patch(`/appointments/${id}/checkin`, data),
   cancel:   (id: string, reason: string) => api.patch(`/appointments/${id}/cancel`, { reason }),
   walkIn:   (data: { patient_id: string; procedure_id: string; modality_id?: string; clinical_indication?: string }) =>
     api.post('/appointments/walk-in', data),

@@ -63,7 +63,16 @@ router.get('/:id', requirePermission('appointments:read'), validate({ params: sc
 router.post('/',   requirePermission('appointments:create'), validate({ body: appointmentSchema }),                             controller.create);
 router.post('/walk-in', requirePermission('appointments:walkin'), validate({ body: walkInSchema }),        controller.createWalkIn);
 router.patch('/:id', requirePermission('appointments:update'), validate({ params: schemas.uuidParam, body: appointmentBase.partial() }), controller.update);
-router.patch('/:id/checkin', requirePermission('appointments:checkin'), validate({ params: schemas.uuidParam, body: z.object({ cpf: schemas.cpf, password: z.string().min(8).regex(/[A-Z]/).regex(/[0-9]/), terms_accepted: z.boolean().optional() }) }), controller.checkIn);
+// Check-in: confirma a IDENTIDADE (CPF, CNS ou documento com foto conferido). Não cria conta do portal.
+const checkinSchema = z.object({
+  identity_verified_by: z.enum(['cpf', 'cns', 'document']).optional(),
+  cpf:   schemas.cpf.optional(),
+  cns:   schemas.cns.optional(),
+  document_verified: z.boolean().optional(),
+  terms_accepted:    z.boolean().optional(),
+  password: z.any().optional(),   // legado (clientes antigos): ignorado — o portal tem fluxo próprio
+});
+router.patch('/:id/checkin', requirePermission('appointments:checkin'), validate({ params: schemas.uuidParam, body: checkinSchema }), controller.checkIn);
 router.patch('/:id/cancel',  requirePermission('appointments:cancel'), validate({ params: schemas.uuidParam, body: z.object({ reason: z.string().min(3) }) }), controller.cancel);
 
 // Status do agendamento — acessível a todos os perfis autenticados (paciente usa portal-patient)

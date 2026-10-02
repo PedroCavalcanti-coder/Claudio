@@ -2017,6 +2017,13 @@ ALTER TABLE auth.users
   ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN     NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS password_changed_at  TIMESTAMPTZ;
 
+-- 21.5 Check-in: como a identidade foi conferida -------------------------------
+-- cpf | cns | document (conferência visual de documento com foto). O check-in não cria mais
+-- conta do portal nem exige senha.
+ALTER TABLE ris.appointments
+  ADD COLUMN IF NOT EXISTS identity_verified_by VARCHAR(16),
+  ADD COLUMN IF NOT EXISTS identity_verified_at TIMESTAMPTZ;
+
 -- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================
