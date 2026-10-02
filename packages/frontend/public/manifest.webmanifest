@@ -1,0 +1,15 @@
+{
+  "name": "RIS/PACS — Sistema Clínico",
+  "short_name": "RIS/PACS",
+  "description": "Sistema RIS/PACS da rede municipal de saúde",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0A7B93",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}

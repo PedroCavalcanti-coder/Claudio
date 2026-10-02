@@ -1,0 +1,31 @@
+<!--subject: Bem-vindo(a) à clínica, {{patient.name}}-->
+<!--preheader: Seu cadastro foi criado. Confira como acessar o portal do paciente.-->
+
+<h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0D0F14;">Olá, {{patient.name}}!</h1>
+
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#36455A;">
+  Seu cadastro foi criado com sucesso no sistema da clínica. A partir de agora você pode
+  acompanhar seus agendamentos, check-ins e laudos diretamente pelo portal do paciente.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;background:#E6F6FA;border-left:3px solid #0A7B93;border-radius:6px;">
+  <tr><td style="padding:14px 18px;">
+    <div style="font-size:11px;color:#0A7B93;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px;">Seu número de prontuário</div>
+    <div style="font-size:18px;font-weight:700;color:#0D0F14;font-family:'JetBrains Mono','Courier New',monospace;">{{patient.medical_record_number}}</div>
+  </td></tr>
+</table>
+
+<p style="margin:16px 0;font-size:14px;color:#51627A;line-height:1.6;">
+  Guarde esse número — você precisará dele em consultas e atendimentos.
+</p>
+
+<div style="margin:24px 0;text-align:center;">
+  <a href="{{portal.login_url}}"
+     style="display:inline-block;background:#0A7B93;color:#FFFFFF;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+    Acessar Portal do Paciente
+  </a>
+</div>
+
+<p style="margin:24px 0 0;font-size:13px;color:#748296;line-height:1.6;">
+  Se você não criou este cadastro, ignore esta mensagem ou entre em contato com a clínica.
+</p>

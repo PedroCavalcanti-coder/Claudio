@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  orthanc:
+    image: jodogne/orthanc-plugins
+    container_name: orthanc
+    restart: unless-stopped
+    ports:
+      - "8042:8042"   # REST API e interface web
+      - "4242:4242"   # DICOM C-FIND/SCP (opcional)
+    environment:
+      - ORTHANC_NAME=OrthancRisPacs
+    volumes:
+      - ./orthanc-config:/etc/orthanc   # monta configuração personalizada
+    # Importante: nenhum volume para dados – tudo vai pro PostgreSQL

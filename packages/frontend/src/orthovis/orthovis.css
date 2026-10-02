@@ -1,0 +1,148 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   OrthoVis v4 — Design System
+   Escopado em .orthovis-root para não vazar para o resto do RIS/PACS.
+   ════════════════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+
+.orthovis-root {
+  /* ── Fundos (alinhados ao dark theme do RIS/PACS) ── */
+  --bg-void:     #07101F;
+  --bg-base:     #0C1828;
+  --bg-surface:  #122038;
+  --bg-elevated: #192A48;
+  --bg-panel:    #1E3050;
+  --bg-overlay:  #253860;
+  --bg-hover:    #2A4068;
+
+  /* ── Bordas ─────────────────────────────────────── */
+  --border-s: rgba(255,255,255,0.05);
+  --border-d: rgba(255,255,255,0.09);
+  --border-b: rgba(255,255,255,0.16);
+
+  /* ── Texto ──────────────────────────────────────── */
+  --text-p: #D4E8F8;
+  --text-s: #7090B0;
+  --text-m: #3D5878;
+  --text-d: #243A52;
+
+  /* ── Acento: cyan (mesmo do dark RIS/PACS) ──────── */
+  --cyan:   #22D3EE;
+  --cyan-d: rgba(34,211,238,0.1);
+  --cyan-b: rgba(34,211,238,0.25);
+
+  /* ── Status ─────────────────────────────────────── */
+  --green:   #10B981;
+  --green-d: rgba(16,185,129,0.1);
+  --amber:   #FBBF24;
+  --amber-d: rgba(251,191,36,0.1);
+  --red:     #F87171;
+  --red-d:   rgba(248,113,113,0.1);
+  --purple:  #A78BFA;
+  --purple-d:rgba(167,139,250,0.12);
+
+  /* ── Planos MPR ─────────────────────────────────── */
+  --ax:  #F72585;
+  --sag: #4CC9F0;
+  --cor: #7BED9F;
+
+  /* ── Raios de borda ──────────────────────────────── */
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  /* ── Sombras ─────────────────────────────────────── */
+  --shadow-f: 0 8px 40px rgba(0,0,0,0.8);
+  --shadow-m: 0 24px 80px rgba(0,0,0,0.9);
+
+  /* ── Fontes ─────────────────────────────────────── */
+  --font-ui: 'Outfit', system-ui, sans-serif;
+  --font-d:  'Outfit', system-ui, sans-serif;
+  --font-m:  'JetBrains Mono', 'Fira Code', monospace;
+  --font-serif: 'Instrument Serif', serif;
+
+  /* ── Container fill (à prova de #root sem altura) ─ */
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  background: var(--bg-void);
+  color: var(--text-p);
+  font-family: var(--font-m);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Reset apenas dentro do viewer */
+.orthovis-root *,
+.orthovis-root *::before,
+.orthovis-root *::after {
+  box-sizing: border-box;
+}
+
+.orthovis-root button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-m);
+  font-size: 12px;
+  color: inherit;
+  transition: all 0.14s ease;
+}
+
+.orthovis-root input,
+.orthovis-root select,
+.orthovis-root textarea {
+  font-family: var(--font-m);
+  font-size: 12px;
+  color: var(--text-p);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-d);
+  border-radius: var(--r-sm);
+  outline: none;
+  transition: border-color 0.14s ease;
+}
+.orthovis-root input:focus,
+.orthovis-root select:focus,
+.orthovis-root textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px var(--cyan-d);
+}
+
+.orthovis-root canvas { display: block; }
+
+/* Scrollbar — só dentro do viewer */
+.orthovis-root ::-webkit-scrollbar          { width: 4px; height: 4px; }
+.orthovis-root ::-webkit-scrollbar-track    { background: transparent; }
+.orthovis-root ::-webkit-scrollbar-thumb    { background: rgba(255,255,255,0.08); border-radius: 2px; }
+.orthovis-root ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+/* Range input */
+.orthovis-root input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  border: none;
+}
+.orthovis-root input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--cyan-d);
+}
+
+.orthovis-root ::selection { background: var(--cyan-d); color: var(--text-p); }
+
+/* Animações usadas pelos componentes (mantidas globais — só prefixadas ov-) */
+@keyframes ov-fadein  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ov-pulse   { 0%,100% { opacity: .45; transform: scale(1); } 50% { opacity: .7; transform: scale(1.04); } }
+@keyframes ov-float   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes ov-spin    { to { transform: rotate(360deg); } }

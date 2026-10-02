@@ -1,0 +1,49 @@
+<!--subject: Lembrete: {{procedure.name}} amanhã — {{appointment.scheduled_date_br}}-->
+<!--preheader: Seu exame está chegando. Confira data, horário e preparo.-->
+
+<h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0D0F14;">Lembrete do seu exame</h1>
+
+<p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#36455A;">
+  Olá, <strong>{{patient.name}}</strong>. Este é um lembrete do seu exame agendado. Confira os detalhes abaixo.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0;background:#F1ECE5;border-radius:8px;">
+  <tr><td style="padding:18px 20px;">
+    <table role="presentation" width="100%" style="font-size:14px;line-height:1.8;">
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;width:140px;">Exame</td>
+        <td style="color:#0D0F14;font-weight:600;">{{procedure.name}}</td>
+      </tr>
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Data</td>
+        <td style="color:#0D0F14;font-weight:600;">{{appointment.scheduled_date_br}}</td>
+      </tr>
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Horário</td>
+        <td style="color:#0D0F14;font-weight:600;">{{appointment.scheduled_time_br}}</td>
+      </tr>
+      {{#clinic.name}}<tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Local</td>
+        <td style="color:#0D0F14;">{{clinic.name}}{{#clinic.address}}<br><span style="font-size:13px;color:#51627A;">{{clinic.address}}</span>{{/clinic.address}}</td>
+      </tr>{{/clinic.name}}
+    </table>
+  </td></tr>
+</table>
+
+{{#procedure.preparation_instructions}}
+<h2 style="margin:24px 0 10px;font-size:14px;font-weight:700;color:#0A7B93;text-transform:uppercase;letter-spacing:0.08em;">Preparo necessário</h2>
+<div style="background:#FEF4E9;border-left:3px solid #B54708;border-radius:6px;padding:12px 16px;font-size:14px;color:#36455A;line-height:1.7;">
+  {{procedure.preparation_instructions}}
+</div>
+{{/procedure.preparation_instructions}}
+
+<div style="margin:24px 0;text-align:center;">
+  <a href="{{portal.status_url}}"
+     style="display:inline-block;background:#0A7B93;color:#FFFFFF;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+    Ver no portal
+  </a>
+</div>
+
+<p style="margin:24px 0 0;font-size:13px;color:#748296;line-height:1.6;">
+  Em caso de impossibilidade de comparecer, entre em contato com a unidade para remarcar.
+</p>

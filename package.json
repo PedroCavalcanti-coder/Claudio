@@ -1,0 +1,22 @@
+{
+  "name": "sistema-ris-pacs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema RIS/PACS clínico — monorepo (backend + frontend + viewer integrado)",
+  "scripts": {
+    "dev:backend":  "pnpm --filter ./packages/backend run dev",
+    "dev:frontend": "pnpm --filter ./packages/frontend run dev",
+    "dev":          "pnpm --parallel --filter ./packages/* run dev",
+    "build":        "pnpm --recursive run build",
+    "lint":         "pnpm --recursive run lint",
+    "test":         "pnpm --recursive run test",
+    "docker:build": "docker compose build",
+    "docker:up":    "docker compose up -d",
+    "docker:down":  "docker compose down",
+    "docker:logs":  "docker compose logs -f"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

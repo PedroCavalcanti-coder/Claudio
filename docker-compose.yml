@@ -1,0 +1,162 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# SISTEMA RIS/PACS — Docker Compose
+#
+# Sobe 6 containers:
+#   1. postgres  — banco de dados LOCAL (substitui o Neon cloud)
+#   2. redis     — cache / fila
+#   3. rustfs    — object storage (S3-compatible)
+#   4. orthanc   — DICOM server (PACS)
+#   5. backend   — Node.js + Express API
+#   6. frontend  — nginx servindo build estático do React/Vite
+#
+# Postgres roda LOCAL (container abaixo) — não depende de internet.
+# Email é **Resend SaaS** (HTTPS via RESEND_API_KEY) — opcional.
+#
+# Uso:
+#   1. cp .env.example .env  e preencha
+#   2. docker compose build
+#   3. docker compose up -d
+#   4. Frontend em http://localhost · API em http://localhost:3000/api/v1
+# ═════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── PostgreSQL (banco LOCAL — substitui o Neon cloud) ────────────────────
+  # Segurança:
+  #   · porta ligada SÓ a 127.0.0.1 (não exposta à rede da máquina);
+  #   · senha forte obrigatória via .env (POSTGRES_PASSWORD);
+  #   · auth scram-sha-256 (hash forte, não md5);
+  #   · dados persistidos em volume nomeado.
+  postgres:
+    image: postgres:16-alpine
+    container_name: ris-postgres
+    restart: unless-stopped
+    ports:
+      # Só localhost: ferramentas locais (psql/DBeaver) e scripts do host.
+      # Para fechar de vez (acesso só pela rede do compose), comente esta linha.
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-ris_pacs}
+      POSTGRES_USER:     ${POSTGRES_USER:-ris}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ris} -d ${POSTGRES_DB:-ris_pacs}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ris-redis
+    restart: unless-stopped
+    # Sem `ports`: acessível SÓ pela rede interna do compose (o backend usa
+    # redis:6379). Não exposto ao host/LAN.
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── RustFS (S3-compatible object storage) ────────────────────────────────
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: ris-rustfs
+    restart: unless-stopped
+    # Sem `ports`: S3 (9000) só pela rede interna (backend usa rustfs:9000).
+    # Console 9001 era só dev — fechado no piloto. Para inspecionar buckets
+    # pontualmente, reative com "127.0.0.1:9001:9001".
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_LOGIN}
+      RUSTFS_SECRET_KEY: ${RUSTFS_PASS}
+      RUSTFS_VOLUMES:    /data
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - rustfs-data:/data
+
+  # ── Orthanc DICOM server ─────────────────────────────────────────────────
+  orthanc:
+    image: jodogne/orthanc-plugins
+    container_name: ris-orthanc
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8042:8042"   # REST + web UI — só local (debug do admin)
+      - "4242:4242"             # DICOM C-STORE — ABERTO na LAN (equipamentos enviam)
+    environment:
+      ORTHANC_NAME: OrthancRisPacs
+    volumes:
+      - ./infra/orthanc/orthanc-config:/etc/orthanc:ro
+      - orthanc-data:/var/lib/orthanc/db
+
+  # ── Backend API ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    container_name: ris-backend
+    restart: unless-stopped
+    ports:
+      # Só local: a LAN acessa a API via nginx do frontend (proxy /api → backend:3000).
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Banco LOCAL — sobrescreve o DATABASE_URL do .env (que pode apontar p/ Neon).
+      # Hostname `postgres` = nome do serviço na rede interna do compose.
+      DATABASE_URL:     postgresql://${POSTGRES_USER:-ris}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ris_pacs}
+      # Produção: cookie do portal `secure`, logs, rate-limits (exige HTTPS no front).
+      NODE_ENV:         production
+      # Sobrescreve hosts dos serviços internos
+      REDIS_URL:        redis://redis:6379
+      RUSTFS_ENDPOINT:  rustfs
+      ORTHANC_URL:      http://orthanc:8042
+      # HTTPS (CORS/links). Trocar por https://IP_DO_SERVIDOR no deploy LAN.
+      FRONTEND_URL:     https://localhost
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rustfs:
+        condition: service_started
+      orthanc:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # ── Frontend (nginx) ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+      args:
+        # Vite resolve durante o build estático
+        VITE_API_URL: /api/v1
+    container_name: ris-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"     # redireciona → 443
+      - "443:443"   # HTTPS (obrigatório p/ teleconsulta getUserMedia na LAN)
+    volumes:
+      # Cert self-signed gerado no deploy (infra/tls/gen-cert.sh). Read-only.
+      - ./infra/tls:/etc/nginx/tls:ro
+    depends_on:
+      backend:
+        condition: service_started
+
+# ── Volumes nomeados (persistem entre `down`/`up`) ──────────────────────────
+volumes:
+  postgres-data:
+  redis-data:
+  rustfs-data:
+  orthanc-data:

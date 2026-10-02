@@ -1,0 +1,83 @@
+# =============================================================================
+# RIS/PACS — .gitignore (monorepo pnpm: backend Node + frontend Vite + Docker)
+# Regras na raiz valem recursivamente para packages/*.
+# =============================================================================
+
+# ── Dependências ─────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.*
+.pnpm-store/
+
+# ── Variáveis de ambiente / segredos ─────────────────────────────────────────
+# Nunca versionar .env reais; manter apenas os *.example como template.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+.claude/
+*.claude/
+
+graphify-out
+
+screenshots/*
+screenshot/*
+
+# ── Build / artefatos ────────────────────────────────────────────────────────
+dist/
+dist-ssr/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Caches de ferramentas ────────────────────────────────────────────────────
+.cache/
+.vite/
+.turbo/
+.eslintcache
+
+# ── Runtime / uploads temporários ────────────────────────────────────────────
+tmp/
+*.tmp
+packages/backend/uploads/
+nginx/ssl/
+
+# ── Editores / SO ────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# ── Claude Code (estado local do harness) ────────────────────────────────────
+.claude/worktrees/
+.claude/settings.local.json
+.claude2/
+
+# Dumps de banco (dados/hashes — nunca versionar)
+infra/db/*.sql
+
+# Certificados TLS (chave privada — nunca versionar)
+infra/tls/
+
+# Backups locais (dados/hashes — nunca versionar)
+backups/

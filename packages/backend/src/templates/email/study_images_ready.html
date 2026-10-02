@@ -1,0 +1,47 @@
+<!--subject: Exame de {{patient.name}} disponível para análise — {{procedure.name}}-->
+<!--preheader: Imagens DICOM disponíveis no visualizador. Clique para abrir.-->
+
+<h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0D0F14;">Exame disponível para análise</h1>
+
+<p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#36455A;">
+  Dr(a). <strong>{{physician.name}}</strong>, as imagens do exame solicitado já estão
+  disponíveis para revisão no sistema.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0;background:#F1ECE5;border-radius:8px;">
+  <tr><td style="padding:18px 20px;">
+    <table role="presentation" width="100%" style="font-size:14px;line-height:1.8;">
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;width:140px;">Paciente</td>
+        <td style="color:#0D0F14;font-weight:600;">{{patient.name}}</td>
+      </tr>
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Prontuário</td>
+        <td style="color:#0D0F14;font-family:'JetBrains Mono','Courier New',monospace;">{{patient.medical_record_number}}</td>
+      </tr>
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Procedimento</td>
+        <td style="color:#0D0F14;font-weight:600;">{{procedure.name}}</td>
+      </tr>
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Modalidade</td>
+        <td style="color:#0D0F14;">{{study.modality}}</td>
+      </tr>
+      <tr>
+        <td style="color:#748296;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Acesso</td>
+        <td style="color:#0D0F14;font-family:'JetBrains Mono','Courier New',monospace;">{{study.accession_number}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<div style="margin:24px 0;text-align:center;">
+  <a href="{{viewer.link}}"
+     style="display:inline-block;background:#0A7B93;color:#FFFFFF;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+    Abrir no visualizador
+  </a>
+</div>
+
+<p style="margin:24px 0 0;font-size:12px;color:#96A3B2;line-height:1.6;">
+  Link válido por 24 horas. Após esse prazo, faça login no sistema para acessar o estudo.
+</p>

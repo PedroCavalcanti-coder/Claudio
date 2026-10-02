@@ -1,0 +1,14 @@
+{
+  "Name": "MeuOrthanc",
+
+  "// — Storage local persistente (montado via volume nomeado 'orthanc-data')": "",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory":   "/var/lib/orthanc/db",
+
+  "DicomModalities":         {},
+  "HttpPort":                8042,
+  "DicomPort":               4242,
+  "AuthenticationEnabled":   false,
+  "RemoteAccessAllowed":     true,
+  "OrthancExplorerEnabled":  true
+}
