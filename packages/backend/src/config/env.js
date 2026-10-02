@@ -63,8 +63,13 @@ const envSchema = z.object({
   SMTP_FROM:             z.string().optional(),
 
   RATE_LIMIT_WINDOW_MS:  z.coerce.number().default(900000),
-  RATE_LIMIT_MAX:        z.coerce.number().default(100),
+  // Global: por USUÁRIO/conta (não por IP — vários funcionários atrás do mesmo NAT). Teto anti-abuso.
+  RATE_LIMIT_MAX:        z.coerce.number().default(2000),
+  // Login: falhas por (IP + CPF/e-mail/usuário) e por IP, em 15 min. Login correto não conta.
   AUTH_RATE_LIMIT_MAX:   z.coerce.number().default(10),
+  AUTH_IP_RATE_LIMIT_MAX: z.coerce.number().default(100),
+  // Portal do paciente: leituras por conta em 15 min (polling de 20-60 s cabe com folga).
+  PORTAL_RATE_LIMIT_MAX: z.coerce.number().default(600),
 
   BCRYPT_ROUNDS:         z.coerce.number().default(12),
   LOG_LEVEL:             z.enum(['error','warn','info','debug']).default('info'),

@@ -11,6 +11,8 @@ const { requirePermission } = require('../../middlewares/authorize');
 const { validate, schemas } = require('../../middlewares/validate');
 const { z } = require('zod');
 
+const { roomLimiter } = require('../../middlewares/rateLimiter');
+
 const router = Router();
 
 const uuid = z.string().uuid('ID inválido');
@@ -40,6 +42,8 @@ router.patch('/sessions/:id/status',
 // ── Sala + sinalização — CAPABILITY por room_token (UUID não adivinhável) ──────
 // SEM autenticação interna: o paciente entra pelo portal (auth diferente) e o
 // próprio link é a credencial. O token é o segredo; só quem o tem participa.
+// Limite próprio (por sala+IP) — o polling de sinalização é de ~1 req/s e fica fora do limite global.
+router.use('/room/:token', roomLimiter);
 router.get('/room/:token', validate(tokenParam), controller.roomInfo);
 
 router.post('/room/:token/signal',

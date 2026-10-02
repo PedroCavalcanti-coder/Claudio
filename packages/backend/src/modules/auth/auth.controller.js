@@ -3,6 +3,7 @@ const bcrypt  = require('bcryptjs');
 const crypto  = require('crypto');
 const db      = require('../../config/database');
 const tokenService = require('../../services/token');
+const { generatePortalJwt } = require('../../services/portalToken');
 const audit   = require('../../services/audit');
 const enc     = require('../../services/encryption');
 const { success } = require('../../utils/response');
@@ -464,15 +465,6 @@ async function resetPassword(req, res) {
   });
   await audit.log({ action: audit.ACTIONS.PASSWORD_CHANGED, userId: rows[0].user_id });
   return success(res, null, 'Senha redefinida com sucesso');
-}
-
-function generatePortalJwt(accountId, patientId, healthUnitId) {
-  const payload = Buffer.from(JSON.stringify({
-    sub: accountId, pid: patientId, huid: healthUnitId, iss: 'ris-portal',
-    exp: Math.floor(Date.now()/1000) + 8*3600,
-  })).toString('base64url');
-  const sig = crypto.createHmac('sha256', env.ENCRYPTION_KEY).update(payload).digest('base64url');
-  return `${payload}.${sig}`;
 }
 
 module.exports = { login, loginPaciente, reactivatePaciente, loginMedico, loginRecepcao, loginTecnico,

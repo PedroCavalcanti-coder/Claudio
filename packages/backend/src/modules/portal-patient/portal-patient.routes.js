@@ -12,7 +12,8 @@ const storage      = require('../../config/storage');
 const audit        = require('../../services/audit');
 const { success, created } = require('../../utils/response');
 const { AppError, NotFoundError } = require('../../utils/errors');
-const { authLimiter, portalLimiter, portalStreamLimiter } = require('../../middlewares/rateLimiter');
+const { authLimiter, portalLimiter, portalSensitiveLimiter, portalStreamLimiter } = require('../../middlewares/rateLimiter');
+const { generatePortalJwt, verifyPortalJwt } = require('../../services/portalToken');
 const env          = require('../../config/env');
 
 const router = Router();
@@ -22,34 +23,15 @@ function normalizeCpf(cpf) {
   return cpf.replace(/[.\-]/g, '').trim();
 }
 
-function generatePortalJwt(accountId, patientId) {
-  const payload = Buffer.from(JSON.stringify({
-    sub: accountId, pid: patientId, iss: 'ris-portal',
-    exp: Math.floor(Date.now() / 1000) + 8 * 3600,
-  })).toString('base64url');
-  const sig = crypto.createHmac('sha256', env.ENCRYPTION_KEY)
-    .update(payload).digest('base64url');
-  return `${payload}.${sig}`;
-}
-
-function verifyPortalJwt(token) {
-  const [payload, sig] = token.split('.');
-  if (!payload || !sig) throw new AppError('Token inválido', 401);
-  const expected = crypto.createHmac('sha256', env.ENCRYPTION_KEY)
-    .update(payload).digest('base64url');
-  if (sig !== expected) throw new AppError('Token inválido', 401);
-  const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
-  if (data.exp < Math.floor(Date.now() / 1000)) throw new AppError('Sessão expirada', 401);
-  return data;
-}
-
 async function requirePortalAuth(req, res, next) {
   const token = req.headers['x-portal-token'] || req.cookies?.portal_token;
   if (!token) return next(new AppError('Autenticação necessária', 401));
   try {
     req.portalUser = verifyPortalJwt(token);
     next();
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(new AppError(e.message === 'EXPIRED' ? 'Sessão expirada' : 'Token inválido', 401));
+  }
 }
 
 // ── CRIAR CONTA (check-in) ────────────────────────────────────────────────────
@@ -129,7 +111,7 @@ router.post('/login', authLimiter, async (req, res) => {
     [req.ip, account.id]
   );
 
-  const token = generatePortalJwt(account.id, account.patient_id);
+  const token = generatePortalJwt(account.id, account.patient_id, account.health_unit_id);
 
   await audit.log({
     action:'PORTAL_LOGIN', resourceType:'patient', resourceId:account.patient_id,
@@ -386,7 +368,7 @@ router.post('/logout', requirePortalAuth, async (req, res) => {
 });
 
 // ── ALTERAR SENHA ─────────────────────────────────────────────────────────────
-router.post('/change-password', portalLimiter, requirePortalAuth, async (req, res) => {
+router.post('/change-password', portalSensitiveLimiter, requirePortalAuth, async (req, res) => {
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password) throw new AppError('Senhas obrigatórias', 422);
   if (new_password.length < 8 || !/[A-Z]/.test(new_password) || !/[0-9]/.test(new_password))
