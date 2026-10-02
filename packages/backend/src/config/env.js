@@ -3,10 +3,14 @@ const { z } = require('zod');
 
 // override: true garante que o .env sempre prevalece sobre variáveis
 // de ambiente já definidas no processo (ex.: residuais de sessões Docker)
-require('dotenv').config({
-  path:     path.resolve(__dirname, '../../.env'),
-  override: true,
-});
+// Em teste (jest) o ambiente vem de tests/setup — um .env de dev não pode vazar
+// para a suíte (apontaria para o banco de verdade).
+if (process.env.NODE_ENV !== 'test') {
+  require('dotenv').config({
+    path:     path.resolve(__dirname, '../../.env'),
+    override: true,
+  });
+}
 
 // z.coerce.boolean() usa Boolean(string) — logo "false" vira true.
 // Este parser interpreta os valores textuais usuais de forma correta.

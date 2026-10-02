@@ -8,8 +8,8 @@
     "dev": "nodemon src/app.js",
     "migrate": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "test": "jest --runInBand",
-    "test:coverage": "jest --coverage"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
@@ -50,5 +50,17 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ],
+    "globalSetup": "<rootDir>/tests/setup/globalSetup.js",
+    "globalTeardown": "<rootDir>/tests/setup/globalTeardown.js",
+    "setupFiles": [
+      "<rootDir>/tests/setup/setupEnv.js"
+    ],
+    "testTimeout": 30000
   }
 }

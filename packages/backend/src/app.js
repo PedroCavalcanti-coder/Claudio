@@ -1,6 +1,6 @@
 'use strict';
 require('express-async-errors');
-require('dotenv').config();
+if (process.env.NODE_ENV !== 'test') require('dotenv').config();
 
 const express      = require('express');
 const helmet       = require('helmet');
@@ -140,6 +140,10 @@ if (require.main === module) {
   logger.info('📧 Worker de email (Bull) inicializado');
 
   require('./jobs/scheduler').startSchedulers();
+
+  // Cria os buckets do RustFS (instalação nova sobe vazia). Em segundo plano, com
+  // retry/backoff: se o storage demorar, a API sobe mesmo assim.
+  require('./config/storage').ensureBuckets().catch(() => {});
 
   app.listen(env.PORT, () => {
     logger.info(`🚀 RIS/PACS API rodando na porta ${env.PORT} [${env.NODE_ENV}]`);

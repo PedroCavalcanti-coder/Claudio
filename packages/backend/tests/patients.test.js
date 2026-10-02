@@ -51,14 +51,14 @@ describe('POST /api/v1/patients', () => {
     patientId = res.body.data.id;
   });
 
-  it('deve rejeitar CPF duplicado', async () => {
+  it('CPF repetido não duplica o cadastro (devolve o paciente existente)', async () => {
     const res = await request(app)
       .post('/api/v1/patients')
       .set('Authorization', `Bearer ${receptionistToken}`)
       .send(newPatient); // mesmo CPF
 
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe('DUPLICATE_ENTRY');
+    expect(res.status).toBe(201);
+    expect(res.body.data.id).toBe(patientId);
   });
 
   it('deve rejeitar sem autenticação', async () => {
