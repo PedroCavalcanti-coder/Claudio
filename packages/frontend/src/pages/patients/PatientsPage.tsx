@@ -410,13 +410,16 @@ export default function PatientsPage() {
 
   const deletePermanentlyMut = useMutation({
     mutationFn: () => patientsApi.deletePermanently(permanentTarget!.id, permanentPassword),
-    onSuccess:  () => {
+    onSuccess:  (res) => {
       qc.invalidateQueries({ queryKey: ['patients'] });
       qc.invalidateQueries({ queryKey: ['appointments'] });
       qc.invalidateQueries({ queryKey: ['worklist'] });
       qc.invalidateQueries({ queryKey: ['studies-pending'] });
       qc.invalidateQueries({ queryKey: ['studies-all'] });
-      toast.success('Paciente e todos os seus dados foram excluídos permanentemente');
+      const mode = (res.data as any)?.data?.mode;
+      toast.success(mode === 'anonymized'
+        ? 'Cadastro anonimizado. O registro clínico foi preservado (guarda legal de 20 anos).'
+        : 'Cadastro excluído permanentemente.');
       setPermanentTarget(null);
       setPermanentPassword('');
       setPermanentError(null);
@@ -678,9 +681,12 @@ export default function PatientsPage() {
           <div className="p-3 rounded-lg border" style={{ background: 'var(--color-danger-bg)', borderColor: 'color-mix(in srgb, var(--color-danger) 30%, transparent)' }}>
             <p className="text-sm font-semibold" style={{ color: 'var(--color-danger)' }}>Esta ação é irreversível.</p>
             <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>
-              Todos os dados de <strong>{permanentTarget?.name}</strong> serão apagados do banco:
-              agendamentos, estudos DICOM (incluindo imagens no Orthanc), laudos, consentimentos
-              e histórico de notificações. O audit log do operador é mantido por exigência legal.
+              <strong>{permanentTarget?.name}</strong> sem nenhum atendimento, exame ou documento clínico
+              será <strong>excluído</strong> do banco. Se houver prontuário, receita, atestado, laudo ou exame,
+              o cadastro será <strong>anonimizado</strong>: nome, CPF, CNS, contatos e endereço são apagados e o
+              acesso ao portal é removido, mas o registro clínico é <strong>preservado</strong>, pois a lei exige
+              guarda de 20 anos (CFM 1.821/2007; LGPD art. 16, I). Os documentos assinados e as imagens
+              mantêm os dados do momento do atendimento. O audit log do operador é mantido.
             </p>
           </div>
 

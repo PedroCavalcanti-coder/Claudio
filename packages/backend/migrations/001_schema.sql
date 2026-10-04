@@ -2024,6 +2024,12 @@ ALTER TABLE ris.appointments
   ADD COLUMN IF NOT EXISTS identity_verified_by VARCHAR(16),
   ADD COLUMN IF NOT EXISTS identity_verified_at TIMESTAMPTZ;
 
+-- 21.6 Anonimização de paciente (LGPD art. 16 × guarda de prontuário) -----------
+-- Prontuário/laudo assinado deve ser guardado por 20 anos (CFM 1.821/2007; LGPD art. 16, I
+-- permite reter por obrigação legal). Em vez de apagar o registro clínico, o cadastro é
+-- ANONIMIZADO: identificadores zerados, vínculo clínico preservado por pseudônimo.
+ALTER TABLE ris.patients ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMPTZ;
+
 -- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================

@@ -369,6 +369,8 @@ async function deactivate(req, res) {
  */
 async function reactivate(req, res) {
   const { id } = req.params;
+  const { rows: an } = await db.query(`SELECT anonymized_at FROM ris.patients WHERE id = $1`, [id]);
+  if (an[0]?.anonymized_at) throw new AppError('Cadastro anonimizado não pode ser reativado', 409, 'PATIENT_ANONYMIZED');
   const { rowCount } = await db.query(
     `UPDATE ris.patients
         SET is_active = TRUE,
@@ -430,86 +432,81 @@ async function deletePermanently(req, res) {
     throw new AppError('Paciente precisa estar inativo antes da exclusão permanente', 400, 'PATIENT_STILL_ACTIVE');
   }
 
-  // Coleta os instances Orthanc antes de apagar o PG
-  const { rows: orthancRefs } = await db.query(
-    `SELECT i.storage_key
-       FROM pacs.instances i
-       JOIN pacs.series  se ON se.id = i.series_id
-       JOIN pacs.studies s  ON s.id  = se.study_id
-      WHERE s.patient_id = $1
-        AND i.storage_key LIKE 'orthanc:%'`,
-    [id]
-  );
-  const orthancStudies = new Set();
-  for (const r of orthancRefs) {
-  }
-  // Pega Orthanc study IDs (mais barato apagar 1 study que N instances)
-  const { rows: orthancStudyRows } = await db.query(
-    `SELECT DISTINCT split_part(s.study_instance_uid, '.', 1) AS uid,
-            s.id AS study_id
-       FROM pacs.studies s
-      WHERE s.patient_id = $1`,
-    [id]
-  );
+  // Cadastro COM registro clínico (atendimento, receita, laudo, estudo…) não pode ser apagado:
+  // a guarda é de 20 anos (CFM 1.821/2007; LGPD art. 16, I). Nesse caso o cadastro é ANONIMIZADO.
+  const { rows: [clin] } = await db.query(
+    `SELECT (EXISTS (SELECT 1 FROM ehr.encounters     WHERE patient_id = $1)
+          OR EXISTS (SELECT 1 FROM ehr.clinical_notes WHERE patient_id = $1)
+          OR EXISTS (SELECT 1 FROM ehr.prescriptions  WHERE patient_id = $1)
+          OR EXISTS (SELECT 1 FROM ehr.certificates   WHERE patient_id = $1)
+          OR EXISTS (SELECT 1 FROM ehr.dispensations  WHERE patient_id = $1)
+          OR EXISTS (SELECT 1 FROM pacs.studies       WHERE patient_id = $1)) AS has`, [id]);
 
-  const result = await db.transaction(async (client) => {
-    // Apagado antes de studies pois reports não tem CASCADE explícito na FK
-    await client.query(
-      `DELETE FROM ris.reports
-        WHERE study_id IN (SELECT id FROM pacs.studies WHERE patient_id = $1)`,
-      [id]
-    );
-    // ON DELETE CASCADE cobre pacs.series/instances/annotations
-    const st = await client.query(
-      `DELETE FROM pacs.studies WHERE patient_id = $1`,
-      [id]
-    );
-    const ap = await client.query(
-      `DELETE FROM ris.appointments WHERE patient_id = $1`,
-      [id]
-    );
+  let mode;
+  let details = {};
+  if (!clin.has) {
+    try {
+      details = await hardDeletePatient(id);
+      mode = 'deleted';
+    } catch (err) {
+      // Algum vínculo que a checagem acima não cobre (FK): preserva o registro e anonimiza.
+      if (err.code !== '23503') throw err;
+      mode = 'anonymized';
+    }
+  } else {
+    mode = 'anonymized';
+  }
+  if (mode === 'anonymized') details = await anonymizePatient(id);
+
+  await audit.log({
+    ...audit.fromRequest(req),
+    action:       mode === 'deleted' ? 'PATIENT_PERMANENTLY_DELETED' : 'PATIENT_ANONYMIZED',
+    resourceType: 'patient',
+    resourceId:   id,
+    details,
+  });
+
+  return success(res, { mode, ...details }, mode === 'deleted'
+    ? 'Cadastro excluído permanentemente (não havia registro clínico)'
+    : 'Cadastro anonimizado — o registro clínico foi preservado (guarda legal de 20 anos)');
+}
+
+// Exclusão física: só para cadastro SEM nenhum registro clínico (ex.: duplicado criado por engano).
+async function hardDeletePatient(id) {
+  return db.transaction(async (client) => {
+    const ap = await client.query(`DELETE FROM ris.appointments WHERE patient_id = $1`, [id]);
     await client.query(`DELETE FROM ris.notifications WHERE resource_type = 'patient' AND resource_id = $1`, [id]);
     await client.query(`DELETE FROM ris.patient_notifications WHERE patient_id = $1`, [id]);
     await client.query(`DELETE FROM ris.patient_portal_accounts WHERE patient_id = $1`, [id]);
     await client.query(`DELETE FROM ris.patient_consents WHERE patient_id = $1`, [id]);
     const pa = await client.query(`DELETE FROM ris.patients WHERE id = $1`, [id]);
-
-    return { studies: st.rowCount, appointments: ap.rowCount, patient: pa.rowCount };
+    return { appointments: ap.rowCount, patient: pa.rowCount };
   });
+}
 
-  // Apaga as imagens no Orthanc (best effort — falha aqui não reverte o PG)
-  const orthanc = require('../../services/orthanc');
-  const logger  = require('../../config/logger');
-  let orthancDeleted = 0;
-  for (const inst of orthancRefs) {
-    const orthancInstanceId = inst.storage_key.slice('orthanc:'.length);
-    try {
-      await orthanc.delete(`/instances/${orthancInstanceId}`);
-      orthancDeleted++;
-    } catch (err) {
-      logger.warn('[delete] falha ao apagar instance no Orthanc', {
-        orthancInstanceId, message: err.message,
-      });
-    }
-  }
-
-  // Audit log — mantém (registro do operador, NÃO dado pessoal do titular)
-  await audit.log({
-    ...audit.fromRequest(req),
-    action:       'PATIENT_PERMANENTLY_DELETED',
-    resourceType: 'patient',
-    resourceId:   id,
-    details: {
-      ...result,
-      orthanc_instances_deleted: orthancDeleted,
-      orthanc_instances_total:   orthancRefs.length,
-    },
+// Anonimização: zera TODO identificador (nome, CPF, CNS, RG, contatos, endereço, observações) e
+// reduz a data de nascimento ao ano. O registro clínico permanece ligado ao paciente pelo id /
+// prontuário (pseudônimo). Acesso ao portal e notificações são removidos.
+async function anonymizePatient(id) {
+  return db.transaction(async (client) => {
+    const label = 'PACIENTE ANONIMIZADO';
+    const { rowCount } = await client.query(
+      `UPDATE ris.patients SET
+          name_encrypted = $2, name_search_hash = $3,
+          -- chk_patient_identifier exige CPF ou CNS: pseudônimo irreversível, não casa com CPF real
+          cpf_hash = $4, cpf_encrypted = NULL, cns_hash = NULL, cns_encrypted = NULL,
+          rg_encrypted = NULL, phone_encrypted = NULL, email_encrypted = NULL,
+          address = NULL, notes = NULL,
+          birth_date = make_date(EXTRACT(YEAR FROM birth_date)::int, 1, 1),
+          is_active = FALSE, deactivated_at = COALESCE(deactivated_at, NOW()),
+          anonymized_at = NOW(), updated_at = NOW()
+        WHERE id = $1`,
+      [id, enc.encrypt(label), enc.searchHash(`anon-name:${id}`), enc.searchHash(`anon-cpf:${id}`)]);
+    const pn = await client.query(`DELETE FROM ris.patient_notifications WHERE patient_id = $1`, [id]);
+    const pa = await client.query(`DELETE FROM ris.patient_portal_accounts WHERE patient_id = $1`, [id]);
+    await client.query(`DELETE FROM ris.notifications WHERE resource_type = 'patient' AND resource_id = $1`, [id]);
+    return { patient: rowCount, portal_accounts_removed: pa.rowCount, notifications_removed: pn.rowCount };
   });
-
-  return success(res, {
-    ...result,
-    orthanc_instances_deleted: orthancDeleted,
-  }, 'Paciente excluído permanentemente');
 }
 
 async function history(req, res) {
