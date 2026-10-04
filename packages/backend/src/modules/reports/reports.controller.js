@@ -2,6 +2,7 @@ const db     = require('../../config/database');
 const enc    = require('../../services/encryption');
 const audit  = require('../../services/audit');
 const storage = require('../../config/storage');
+const { ensurePdf } = require('../../services/documentPdf');
 const logger = require('../../config/logger');
 const env    = require('../../config/env');
 const { buildUnitFilter } = require('../../middlewares/unitVisibility');
@@ -538,16 +539,11 @@ async function listAutoTexts(req, res) {
 }
 
 async function getPdf(req, res) {
-  const { rows } = await db.query(
-    `SELECT pdf_storage_key, status FROM ris.reports WHERE id = $1`,
-    [req.params.id]
-  );
-  if (!rows.length) throw new NotFoundError('Laudo');
-  if (rows[0].status !== 'signed') throw new AppError('PDF disponível apenas para laudos assinados', 422);
-  if (!rows[0].pdf_storage_key) throw new AppError('PDF ainda não gerado', 202, 'PDF_PENDING');
+  // Se o PDF não foi gerado/guardado na assinatura, é regerado do HTML assinado (content_html).
+  const { bucket, key } = await ensurePdf('report', req.params.id);
 
   // Stream pelo backend (o navegador não alcança o host interno do storage).
-  const body = await storage.getStream(storage.BUCKETS.REPORTS, rows[0].pdf_storage_key);
+  const body = await storage.getStream(bucket, key);
 
   await audit.log({
     ...audit.fromRequest(req),
@@ -613,9 +609,10 @@ async function download(req, res) {
   const patientName = enc.decrypt(row.name_encrypted);
 
   // O storage (RustFS) só é alcançável dentro da rede Docker, então o PDF é transmitido pelo backend em vez de URL pré-assinada.
-  if (row.pdf_storage_key) {
+  {
     try {
-      const body = await storage.getStream(storage.BUCKETS.REPORTS, row.pdf_storage_key);
+      const { bucket, key } = await ensurePdf('report', row.id);
+      const body = await storage.getStream(bucket, key);
       await audit.log({
         ...audit.fromRequest(req),
         action: audit.ACTIONS.REPORT_EXPORTED,

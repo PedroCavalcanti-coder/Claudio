@@ -13,6 +13,7 @@ const env     = require('../../config/env');
 const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 const { renderHtmlToPdf } = require('../../services/pdfRenderer');
+const { ensurePdf } = require('../../services/documentPdf');
 const { success, created } = require('../../utils/response');
 const { NotFoundError, AppError } = require('../../utils/errors');
 const { assertClinicalAccess, logClinical } = require('./ehr.access');
@@ -628,13 +629,14 @@ async function updateImmunization(req, res) {
   return success(res, { id: req.params.id }, 'Vacina atualizada');
 }
 
-// PDF de documento assinado (prescrição/atestado). `table` é literal fixo.
+// PDF de documento assinado (prescrição/atestado). `table` é literal fixo. Se o PDF não foi
+// gerado/guardado na assinatura (Puppeteer/storage fora do ar), é regerado sob demanda.
 async function streamDocPdf(table, label, req, res) {
-  const { rows } = await db.query(`SELECT patient_id, pdf_storage_key FROM ehr.${table} WHERE id=$1`, [req.params.id]);
+  const { rows } = await db.query(`SELECT patient_id FROM ehr.${table} WHERE id=$1`, [req.params.id]);
   if (!rows.length) throw new NotFoundError(label);
   await assertClinicalAccess(req, rows[0].patient_id);
-  if (!rows[0].pdf_storage_key) throw new AppError('PDF não disponível (documento não assinado)', 404);
-  const body = await storage.getStream(storage.BUCKETS.DOCUMENTS, rows[0].pdf_storage_key);
+  const { bucket, key } = await ensurePdf(table === 'prescriptions' ? 'prescription' : 'certificate', req.params.id);
+  const body = await storage.getStream(bucket, key);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="${label}-${req.params.id}.pdf"`);
   body.pipe(res);
@@ -812,6 +814,7 @@ async function listAdverseEvents(req, res) {
 }
 
 module.exports = {
+  buildRxHtml, buildCertHtml,   // reutilizados na regeneração de PDF (services/documentPdf)
   createNursingAssessment, listNursingAssessments,
   createNursingEvolution, listNursingEvolutions,
   createServiceRequest, listServiceRequests, updateServiceRequestStatus,

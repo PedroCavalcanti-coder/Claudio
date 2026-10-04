@@ -115,6 +115,11 @@ router.get('/clinical-notes/:id/versions',
   validate({ params: schemas.uuidParam }),
   controller.listNoteVersions);
 
+router.get('/clinical-notes/:id/pdf',
+  requirePermission('clinical_note:read'),
+  validate({ params: schemas.uuidParam }),
+  controller.downloadNotePdf);
+
 // ── Problemas (CID-10) ───────────────────────────────────────────────────────
 router.get('/patients/:id/problems',
   requirePermission('problem:read'),

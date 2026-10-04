@@ -19,6 +19,7 @@ const env     = require('../../config/env');
 const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 const { renderHtmlToPdf } = require('../../services/pdfRenderer');
+const { ensurePdf } = require('../../services/documentPdf');
 const { success, created } = require('../../utils/response');
 const { NotFoundError, AppError } = require('../../utils/errors');
 const { assertClinicalAccess, logClinical } = require('./ehr.access');
@@ -586,7 +587,21 @@ async function exportEncounterFhir(req, res) {
   return res.json(bundle);
 }
 
+// PDF da evolução assinada (gerado sob demanda se faltar no storage)
+async function downloadNotePdf(req, res) {
+  const { rows } = await db.query(`SELECT patient_id FROM ehr.clinical_notes WHERE id = $1`, [req.params.id]);
+  if (!rows.length) throw new NotFoundError('Evolução');
+  await assertClinicalAccess(req, rows[0].patient_id);
+  const { bucket, key } = await ensurePdf('note', req.params.id);
+  const body = await storage.getStream(bucket, key);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="evolucao-${req.params.id}.pdf"`);
+  body.pipe(res);
+}
+
 module.exports = {
+  downloadNotePdf,
+  buildNoteHtml,   // reutilizado na regeneração de PDF (services/documentPdf)
   createEncounter, listEncounters, getEncounter, updateEncounter, closeEncounter,
   createNote, updateNote, signNote, amendNote, listNoteVersions,
   listProblems, createProblem, updateProblem,

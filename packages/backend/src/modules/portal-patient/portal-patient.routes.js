@@ -9,6 +9,7 @@ const crypto       = require('crypto');
 const db           = require('../../config/database');
 const enc          = require('../../services/encryption');
 const storage      = require('../../config/storage');
+const { ensurePdf } = require('../../services/documentPdf');
 const audit        = require('../../services/audit');
 const { success, created } = require('../../utils/response');
 const { AppError, NotFoundError } = require('../../utils/errors');
@@ -214,18 +215,20 @@ router.get('/exams/:studyId/pdf', portalLimiter, requirePortalAuth, async (req, 
   const { studyId } = req.params;
 
   const { rows } = await db.query(
-    `SELECT r.pdf_storage_key FROM ris.reports r
+    `SELECT r.id FROM ris.reports r
      JOIN pacs.studies s ON s.id = r.study_id
      WHERE r.study_id=$1 AND s.patient_id=$2 AND r.status IN ('signed','amended')`,
     [studyId, patientId]
   );
 
-  if (!rows.length || !rows[0].pdf_storage_key)
+  if (!rows.length)
     throw new AppError('PDF não disponível', 404, 'PDF_NOT_AVAILABLE');
+  // Regera sob demanda se o PDF não foi guardado na assinatura.
+  const pdf = await ensurePdf('report', rows[0].id);
 
   // Stream pelo backend: o RustFS só é alcançável na rede Docker, então uma
   // URL pré-assinada apontaria para um host inacessível ao navegador.
-  const body = await storage.getStream(storage.BUCKETS.REPORTS, rows[0].pdf_storage_key);
+  const body = await storage.getStream(pdf.bucket, pdf.key);
 
   await audit.log({
     action:'PORTAL_REPORT_DOWNLOADED', resourceType:'study', resourceId:studyId, ipAddress:req.ip,
@@ -497,13 +500,14 @@ function streamDocPdf(table, action) {
   return async (req, res) => {
     const patientId = req.portalUser.pid;
     const { rows } = await db.query(
-      `SELECT pdf_storage_key FROM ehr.${table}
+      `SELECT id FROM ehr.${table}
         WHERE id = $1 AND patient_id = $2 AND status = 'signed'`,
       [req.params.id, patientId]
     );
-    if (!rows.length || !rows[0].pdf_storage_key)
+    if (!rows.length)
       throw new AppError('Documento não disponível', 404, 'PDF_NOT_AVAILABLE');
-    const body = await storage.getStream(storage.BUCKETS.DOCUMENTS, rows[0].pdf_storage_key);
+    const pdf = await ensurePdf(table === 'prescriptions' ? 'prescription' : 'certificate', req.params.id);
+    const body = await storage.getStream(pdf.bucket, pdf.key);
     await audit.log({ action, resourceType: table, resourceId: req.params.id, ipAddress: req.ip });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${table}-${String(req.params.id).slice(0, 8)}.pdf"`);

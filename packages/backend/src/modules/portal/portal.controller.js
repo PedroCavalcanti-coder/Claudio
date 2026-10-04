@@ -2,6 +2,7 @@ const db = require('../../config/database');
 const enc = require('../../services/encryption');
 const audit = require('../../services/audit');
 const storage = require('../../config/storage');
+const { ensurePdf } = require('../../services/documentPdf');
 const { success } = require('../../utils/response');
 const { AppError, NotFoundError } = require('../../utils/errors');
 
@@ -83,11 +84,10 @@ async function getByToken(req, res) {
 async function getPdfByToken(req, res) {
   const report = await resolveToken(req.params.token);
 
-  if (!report.pdf_storage_key) {
-    throw new AppError('PDF ainda não disponível', 202, 'PDF_PENDING');
-  }
-
-  const url = await storage.getPresignedUrl(storage.BUCKETS.REPORTS, report.pdf_storage_key, 300);
+  // Stream pelo backend (URL pré-assinada apontaria para o host interno do RustFS, inalcançável
+  // pelo navegador) e regera o PDF sob demanda se ele não foi guardado na assinatura.
+  const { bucket, key } = await ensurePdf('report', report.id);
+  const body = await storage.getStream(bucket, key);
 
   await audit.log({
     action: audit.ACTIONS.REPORT_EXPORTED,
@@ -97,7 +97,10 @@ async function getPdfByToken(req, res) {
     details: { via: 'portal_token' },
   });
 
-  return success(res, { url, expires_in_seconds: 300 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="laudo-${String(report.id).slice(0, 8)}.pdf"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+  return body.pipe(res);
 }
 
 async function getImagesByToken(req, res) {
