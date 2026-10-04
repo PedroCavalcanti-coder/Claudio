@@ -58,4 +58,7 @@ let slotSeq = 0;
  */
 const uniqueSlot = () => new Date(Date.UTC(2033, 0, 1) + (Math.floor(Math.random() * 20000) * 1800e3) + (slotSeq++ % 7) * 60e3).toISOString();
 
-module.exports = { uniqueSlot, app, request, P, login, as, anon, uniqueCpf, LOGINS };
+/** Token de acesso válido para um usuário arbitrário (ex.: criado direto no banco) — mesmo emissor do login. */
+const signToken = (user) => require('../../src/services/token').generateAccessToken(user);
+
+module.exports = { signToken, uniqueSlot, app, request, P, login, as, anon, uniqueCpf, LOGINS };

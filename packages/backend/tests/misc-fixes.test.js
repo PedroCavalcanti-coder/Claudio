@@ -51,3 +51,33 @@ it('P2-8: lembrete sem provedor de e-mail registra "skipped" (não "sent") e é 
   const { rows } = await db.query(`SELECT status, sent_at FROM ris.appointment_reminders WHERE appointment_id = $1`, [ap.id]);
   expect(rows).toEqual([{ status: 'skipped', sent_at: null }]);
 });
+
+describe('P2-9: configuração inicial guiada', () => {
+  it('checklist do admin reflete o estado e lista o que falta por unidade', async () => {
+    const res = await admin.get('/health-units/setup-status');
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(6);
+    expect(res.body.data.steps.map((s) => s.key)).toEqual(['unit', 'modalities', 'procedures', 'shifts', 'staff', 'password']);
+    expect(res.body.data.steps.find((s) => s.key === 'unit').done).toBe(true);
+  });
+  it('só admin enxerga o checklist', async () => {
+    expect((await recep.get('/health-units/setup-status')).status).toBe(403);
+  });
+  it('agendar exame em unidade SEM procedimentos configurados explica o que falta (422)', async () => {
+    const { rows: [unit] } = await db.query(`INSERT INTO ris.health_units (name, type) VALUES ('Unidade Vazia Teste', 'clinic') RETURNING id`);
+    const { rows: [u] } = await db.query(
+      `INSERT INTO auth.users (name, email, password_hash, role, health_unit_id)
+       VALUES ('Recep Vazia', $1, crypt('x', gen_salt('bf', 4)), 'receptionist', $2) RETURNING id`, [`vazia${Date.now()}@t.local`, unit.id]);
+    const { signToken } = require('./helpers/api');
+    const token = await signToken({ id: u.id, email: 'x', role: 'receptionist', name: 'Recep Vazia', health_unit_id: unit.id });
+    const request = require('supertest');
+    const { app, P } = require('./helpers/api');
+    const { rows: [proc] } = await db.query(`SELECT id FROM ris.procedures LIMIT 1`);
+    const pid = (await recep.post('/patients', { name: 'Paciente Unidade Vazia', birth_date: '1990-01-01', gender: 'F', cpf: uniqueCpf() })).body.data.id;
+    const res = await request(app).post(`${P}/appointments`).set('Authorization', `Bearer ${token}`)
+      .send({ patient_id: pid, appointment_kind: 'imaging', procedure_id: proc.id, scheduled_at: uniqueSlot() });
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('UNIT_SETUP_INCOMPLETE');
+    expect(res.body.message).toMatch(/procedimentos/i);
+  });
+});

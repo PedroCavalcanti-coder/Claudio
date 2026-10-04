@@ -20,6 +20,36 @@ router.get('/', requirePermission('health_units:manage'), async (req, res) => {
   return success(res, rows);
 });
 
+// ── Checklist de configuração inicial (admin) ─────────────────────────────────
+// A ordem que o admin precisa saber: unidade → equipamentos → procedimentos por unidade → turnos
+// → equipe → senha própria. Devolve o que está feito e, por unidade, o que falta.
+router.get('/setup-status', requirePermission('health_units:manage'), async (req, res) => {
+  const { rows: units } = await db.query(
+    `SELECT hu.id, hu.name,
+            (SELECT count(*) FROM ris.modalities m WHERE m.health_unit_id = hu.id AND m.is_active)::int AS modalities,
+            (SELECT count(*) FROM ris.unit_procedures up WHERE up.health_unit_id = hu.id)::int          AS procedures,
+            (SELECT count(*) FROM ris.shifts sh WHERE sh.health_unit_id = hu.id AND sh.is_active)::int   AS shifts,
+            (SELECT count(*) FROM auth.users u WHERE u.health_unit_id = hu.id AND u.is_active)::int      AS staff
+       FROM ris.health_units hu WHERE hu.is_active ORDER BY hu.name`);
+  const { rows: [adm] } = await db.query(
+    `SELECT bool_and(NOT must_change_password) AS ok FROM auth.users WHERE id = $1`, [req.user.sub]);
+
+  const any = (k) => units.some((u) => u[k] > 0);
+  const steps = [
+    { key: 'unit',       label: 'Cadastrar a unidade de saúde',                 done: units.length > 0,   to: '/admin/units' },
+    { key: 'modalities', label: 'Cadastrar equipamentos/salas da unidade',      done: any('modalities'),  to: '/admin/units' },
+    { key: 'procedures', label: 'Definir os procedimentos oferecidos por unidade', done: any('procedures'), to: '/admin/units' },
+    { key: 'shifts',     label: 'Criar os turnos de trabalho',                  done: any('shifts'),      to: '/admin/units' },
+    { key: 'staff',      label: 'Cadastrar a equipe (lotada na unidade)',       done: any('staff'),       to: '/admin/staff' },
+    { key: 'password',   label: 'Trocar a senha provisória do administrador',   done: !!adm?.ok,          to: '/trocar_senha' },
+  ];
+  const LABEL = { modalities: 'equipamentos', procedures: 'procedimentos', shifts: 'turnos', staff: 'equipe' };
+  const incomplete = units
+    .map((u) => ({ id: u.id, name: u.name, missing: Object.keys(LABEL).filter((k) => u[k] === 0).map((k) => LABEL[k]) }))
+    .filter((u) => u.missing.length);
+  return success(res, { steps, done: steps.filter((x) => x.done).length, total: steps.length, units_incomplete: incomplete });
+});
+
 // ── Minha unidade (qualquer usuário logado) ───────────────────────────────────
 router.get('/mine', async (req, res) => {
   if (!req.user?.health_unit_id) {

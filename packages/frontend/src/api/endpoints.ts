@@ -270,6 +270,7 @@ export const referralsApi = {
 export const healthUnitsApi = {
   list:       () => api.get('/health-units'),
   mine:       () => api.get('/health-units/mine'),
+  setupStatus: () => api.get('/health-units/setup-status'),
   create:     (data: Record<string, unknown>) => api.post('/health-units', data),
   update:     (id: string, data: Record<string, unknown>) => api.patch(`/health-units/${id}`, data),
   modalities: (unitId: string) => api.get(`/health-units/${unitId}/modalities`),

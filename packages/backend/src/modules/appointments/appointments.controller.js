@@ -192,6 +192,18 @@ async function create(req, res) {
   if (kind === 'imaging') {
     if (!body.procedure_id) throw new AppError('Procedimento é obrigatório para exame de imagem', 422);
 
+    // Unidade recém-criada, ainda sem NENHUM procedimento configurado: não há o que agendar. Em vez
+    // de aceitar qualquer coisa (ou falhar adiante), diz exatamente o que falta.
+    if (unitId) {
+      const { rows: [cfg] } = await db.query(
+        `SELECT (SELECT count(*) FROM ris.unit_procedures WHERE health_unit_id = $1)::int AS procedures`, [unitId]);
+      if (cfg.procedures === 0) {
+        throw new AppError(
+          'Esta unidade ainda não tem procedimentos configurados. Peça ao administrador: Administração → Unidades → Procedimentos da unidade (e, para agendar com horário, os Turnos).',
+          422, 'UNIT_SETUP_INCOMPLETE');
+      }
+    }
+
     // Equipamento indisponível (desativado/em manutenção) não recebe agendamento
     if (body.modality_id) {
       const { rows: mRows } = await db.query(
@@ -231,7 +243,7 @@ async function create(req, res) {
     autoAssigned = !!assignedDoctorId;
   }
   if (isClinical && !assignedDoctorId) {
-    throw new AppError('Consulta exige um médico; nenhum plantonista disponível no horário', 422, 'NO_DOCTOR');
+    throw new AppError('Consulta exige um médico: escolha um ou configure os Turnos da unidade (Administração → Unidades → Turnos) para a escolha automática de plantonista.', 422, 'NO_DOCTOR');
   }
 
   const insertAppt = (q) => q(
