@@ -230,7 +230,6 @@ async function sign(req, res) {
   const { id } = req.params;
   const {
     content_html, findings, conclusion, technique, recommendations,
-    doctor_institution,
     digital_certificate_sn, digital_certificate_cn,
     cid10_codes,
   } = req.body || {};

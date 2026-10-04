@@ -18,7 +18,6 @@ async function patientWith(body) {
   expect(res.status).toBe(201);
   return res.body.data.id;
 }
-let slot = 0;
 async function consulta(patient_id) {   // cada consulta em um horário próprio (o médico não pode ficar em duas)
   const res = await recep.post('/appointments', {
     patient_id, appointment_kind: 'consultation', assigned_doctor_id: doctor.user.id,

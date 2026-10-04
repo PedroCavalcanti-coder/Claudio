@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Clock, AlertTriangle, CheckCircle, MessageSquare, UserX, ChevronRight, Plus, Eye } from 'lucide-react';
 import api from '../../api/client';
@@ -21,8 +21,11 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; icon: typeof
 };
 
 function SlaTimer({ deadline, isOverdue }: { deadline: string; isOverdue: boolean }) {
+  // "agora" como estado (atualiza a cada minuto): Date.now() direto no render é impuro.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(t); }, []);
   const remaining = Math.abs(
-    (new Date(deadline).getTime() - Date.now()) / 3600000
+    (new Date(deadline).getTime() - now) / 3600000
   );
   const label = isOverdue
     ? `${remaining.toFixed(0)}h em atraso`

@@ -129,7 +129,7 @@ async function issueTokens(req, res, user, redirectTo) {
 // ── /login_paciente — CPF + senha → /portal_do_paciente ──────────────────────
 async function loginPaciente(req, res) {
   const { cpf, password } = req.body;
-  const cpfHash = enc.searchHash(cpf.replace(/[.\-]/g, '').trim());
+  const cpfHash = enc.searchHash(cpf.replace(/[.-]/g, '').trim());
 
   const { rows } = await db.query(
     `SELECT pa.*, p.name_encrypted, p.medical_record_number, p.health_unit_id,
@@ -211,7 +211,7 @@ async function loginPaciente(req, res) {
 // ── /reactivate_paciente — CPF + senha → reativa + emite sessão ───────────────
 async function reactivatePaciente(req, res) {
   const { cpf, password } = req.body;
-  const cpfHash = enc.searchHash(cpf.replace(/[.\-]/g, '').trim());
+  const cpfHash = enc.searchHash(cpf.replace(/[.-]/g, '').trim());
 
   const { rows } = await db.query(
     `SELECT pa.*, p.name_encrypted, p.medical_record_number, p.health_unit_id,
@@ -280,7 +280,7 @@ async function reactivatePaciente(req, res) {
 // ── /login_medico — CPF + email + senha → / com role=radiologist ──────────────
 async function loginMedico(req, res) {
   const { cpf, email, password } = req.body;
-  const cpfHash = enc.searchHash(cpf.replace(/[.\-]/g,'').trim());
+  const cpfHash = enc.searchHash(cpf.replace(/[.-]/g,'').trim());
 
   const user = await findAndValidate(
     `email=$1 AND cpf_hash=$2 AND role IN ('radiologist','doctor')`,

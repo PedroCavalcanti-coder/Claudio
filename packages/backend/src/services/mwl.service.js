@@ -11,7 +11,6 @@
  *
  * Referência: DICOM PS3.4 Annex K (Basic Worklist Management).
  */
-const fs     = require('fs');
 const fsp     = require('fs/promises');
 const path   = require('path');
 const crypto = require('crypto');

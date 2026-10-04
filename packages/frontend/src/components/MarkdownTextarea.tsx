@@ -44,7 +44,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaHandle, Props>(functi
     const end   = ta.selectionEnd;
     const sel   = value.slice(start, end);
 
-    let next = value;
+    let next: string;
     let caretStart = start;
     let caretEnd   = end;
 

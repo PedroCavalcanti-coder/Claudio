@@ -1,7 +1,6 @@
 const db    = require('../../config/database');
 const enc   = require('../../services/encryption');
 const audit = require('../../services/audit');
-const env   = require('../../config/env');
 const mwl   = require('../../services/mwl.service');
 const messaging = require('../../services/messaging');
 const logger = require('../../config/logger');
@@ -461,7 +460,7 @@ async function checkIn(req, res) {
     if (method === 'cpf') {
       if (!cpf) throw new AppError('Informe o CPF do paciente', 422, 'IDENTITY_REQUIRED');
       if (!ap.cpf_hash) throw new AppError('Paciente sem CPF cadastrado — confira por CNS ou documento com foto', 422, 'NO_CPF_ON_FILE');
-      if (enc.searchHash(cpf.replace(/[.\-]/g, '').trim()) !== ap.cpf_hash)
+      if (enc.searchHash(cpf.replace(/[.-]/g, '').trim()) !== ap.cpf_hash)
         throw new AppError('CPF não corresponde ao agendamento. Check-in cancelado.', 422, 'IDENTITY_MISMATCH');
     } else if (method === 'cns') {
       if (!cns) throw new AppError('Informe o CNS do paciente', 422, 'IDENTITY_REQUIRED');

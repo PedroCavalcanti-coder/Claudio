@@ -12,13 +12,13 @@ const { as, anon, uniqueCpf, uniqueSlot } = require('./helpers/api');
 const binary = (res, cb) => { const c = []; res.on('data', (d) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); };
 const cpf = uniqueCpf();
 let PASSWORD_PORTAL;
-let recep, doctor, nurse, admin;
+let recep, doctor, nurse;
 let patientId, appointmentId, encounterId, noteId, rxId, rxItemId, stockId;
 
 beforeAll(async () => {
   // O boot da API (app.js) cria os buckets; a suíte importa o app sem subir o servidor.
   expect((await require('../src/config/storage').ensureBuckets()).ok).toBe(true);
-  [recep, doctor, nurse, admin] = await Promise.all([as('recep'), as('doctor'), as('nurse'), as('admin')]);
+  [recep, doctor, nurse] = await Promise.all([as('recep'), as('doctor'), as('nurse')]);
 });
 afterAll(async () => { await db.pool.end(); });
 

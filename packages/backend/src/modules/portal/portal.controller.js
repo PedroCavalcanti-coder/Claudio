@@ -104,7 +104,7 @@ async function getPdfByToken(req, res) {
 }
 
 async function getImagesByToken(req, res) {
-  const report = await resolveToken(req.params.token);
+  await resolveToken(req.params.token);   // valida o token (404/expirado); as imagens saem pelo UID do estudo
 
   const { rows: series } = await db.query(
     `SELECT se.id, se.series_instance_uid, se.series_number, se.series_description,

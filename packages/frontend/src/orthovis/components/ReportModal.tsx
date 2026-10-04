@@ -164,7 +164,7 @@ export function ReportModal({ onClose }: { onClose: () => void }) {
     const dateStr = now.toLocaleDateString('pt-BR',{year:'numeric',month:'long',day:'numeric'})
     const timeStr = now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
 
-    let captures: {label:string; src:string}[] = []
+    const captures: {label:string; src:string}[] = []
     if (captureScreenshots && inclCapture) {
       for (const [id, vp] of Object.entries(viewports)) {
         const src = captureViewport(id, vp)

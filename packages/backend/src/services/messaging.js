@@ -21,7 +21,7 @@ function providerFor(channel) {
 
 // Tenta entregar. Sem provedor → pending (logado). Com provedor → aqui entraria
 // a chamada real ao SDK; mantido como ponto de extensão único.
-async function tryDeliver({ channel, to, body }) {
+async function tryDeliver({ channel }) {   // `to`/`body` serão usados pelo SDK do provedor (ponto de extensão)
   const provider = providerFor(channel);
   if (!provider) {
     logger.warn('Mensagem enfileirada sem provedor configurado', { channel });

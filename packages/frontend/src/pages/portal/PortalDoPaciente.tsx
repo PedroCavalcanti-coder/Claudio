@@ -227,7 +227,7 @@ function PortalClinicalSummary({ token }: { token: string }) {
   if (!data) return null;
   const allergies = data.allergies ?? [], problems = data.problems ?? [], medications = data.medications ?? [], immunizations = data.immunizations ?? [];
   if (!allergies.length && !problems.length && !medications.length && !immunizations.length) return null;
-  const Block = ({ title, Icon, items, bg, color }: any) => items.length ? (
+  const renderBlock = ({ title, Icon, items, bg, color }: any) => items.length ? (
     <div style={{ borderRadius: 12, padding: 14, background: 'var(--navy-900)', border: '1px solid var(--navy-700)' }}>
       <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--sl-500)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontFamily: 'JetBrains Mono, monospace' }}><Icon size={13} /> {title}</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -239,10 +239,10 @@ function PortalClinicalSummary({ token }: { token: string }) {
     <div style={{ marginBottom: 4 }}>
       <h2 style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, fontWeight: 400, color: 'var(--sl-100)', letterSpacing: '-0.01em', marginBottom: 12 }}>Resumo de Saúde</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-        <Block title="Alergias" Icon={AlertTriangle} bg="rgba(239,68,68,0.15)" color="#fca5a5" items={allergies.map((a: any) => a.allergen + (a.severity && a.severity !== 'unknown' ? ` (${SEV_PT[a.severity]})` : ''))} />
-        <Block title="Condições ativas" Icon={Activity} bg="var(--color-accent-subtle)" color="var(--cyan-500)" items={problems.map((p: any) => p.title)} />
-        <Block title="Medicamentos" Icon={Pill} bg="var(--navy-800)" color="var(--sl-300)" items={medications.map((m: any) => m.name + (m.dose ? ` ${m.dose}` : ''))} />
-        <Block title="Vacinas" Icon={Syringe} bg="var(--navy-800)" color="var(--sl-300)" items={immunizations.slice(0, 10).map((v: any) => v.vaccine + (v.dose_label ? ` (${v.dose_label})` : ''))} />
+        {renderBlock({ title: "Alergias", Icon: AlertTriangle, bg: "rgba(239,68,68,0.15)", color: "#fca5a5", items: allergies.map((a: any) => a.allergen + (a.severity && a.severity !== 'unknown' ? ` (${SEV_PT[a.severity]})` : '')) })}
+        {renderBlock({ title: "Condições ativas", Icon: Activity, bg: "var(--color-accent-subtle)", color: "var(--cyan-500)", items: problems.map((p: any) => p.title) })}
+        {renderBlock({ title: "Medicamentos", Icon: Pill, bg: "var(--navy-800)", color: "var(--sl-300)", items: medications.map((m: any) => m.name + (m.dose ? ` ${m.dose}` : '')) })}
+        {renderBlock({ title: "Vacinas", Icon: Syringe, bg: "var(--navy-800)", color: "var(--sl-300)", items: immunizations.slice(0, 10).map((v: any) => v.vaccine + (v.dose_label ? ` (${v.dose_label})` : '')) })}
       </div>
     </div>
   );

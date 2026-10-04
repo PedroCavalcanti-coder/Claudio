@@ -34,7 +34,7 @@ it('P2-8: /users?active=false filtra os INATIVOS (z.coerce.boolean() tratava "fa
 it('P2-8: rota legada /studies/:uid/series (sombreada, authorize legado) foi removida do app', () => {
   const app = require('../src/app');
   const paths = [];
-  const walk = (stack, base = '') => stack.forEach((l) => {
+  const walk = (stack) => stack.forEach((l) => {
     if (l.route) paths.push(l.route.path);
   });
   walk(app._router.stack);

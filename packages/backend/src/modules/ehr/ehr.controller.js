@@ -262,7 +262,6 @@ async function updateNote(req, res) {
      plan       !== undefined, enc.encrypt(norm(plan)),
      cid10_codes !== undefined, JSON.stringify(normalizeCid(cid10_codes))]
   );
-  void setEnc;
   await logClinical(req, A.EHR_NOTE_UPDATED, {
     patientId: n.patient_id, resourceType: 'ehr_clinical_note', resourceId: n.id,
   });

@@ -2,7 +2,7 @@
 const { Router } = require('express');
 const db         = require('../../config/database');
 const authenticate  = require('../../middlewares/authenticate');
-const { requirePermission, requireUnitScopeParam, assertUnitScope } = require('../../middlewares/authorize');
+const { requirePermission, requireUnitScopeParam } = require('../../middlewares/authorize');
 const { success, created } = require('../../utils/response');
 const { AppError }  = require('../../utils/errors');
 
@@ -100,7 +100,7 @@ router.post('/', requirePermission('health_units:manage'), async (req, res) => {
 
 // ── Atualizar unidade (admin) ─────────────────────────────────────────────────
 router.patch('/:id', requirePermission('health_units:manage'), async (req, res) => {
-  const { name, cnpj, cnes, type, address, phone, email, is_active } = req.body;
+  const { name, cnpj, cnes, type, phone, email, is_active } = req.body;
   if (name && await nameTaken(name, req.params.id)) {
     throw new AppError('Já existe uma unidade com este nome', 409, 'UNIT_NAME_TAKEN');
   }

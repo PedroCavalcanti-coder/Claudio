@@ -5,7 +5,6 @@
  */
 const { Router }  = require('express');
 const bcrypt       = require('bcryptjs');
-const crypto       = require('crypto');
 const db           = require('../../config/database');
 const enc          = require('../../services/encryption');
 const storage      = require('../../config/storage');
@@ -21,7 +20,7 @@ const router = Router();
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function normalizeCpf(cpf) {
-  return cpf.replace(/[.\-]/g, '').trim();
+  return cpf.replace(/[.-]/g, '').trim();
 }
 
 async function requirePortalAuth(req, res, next) {

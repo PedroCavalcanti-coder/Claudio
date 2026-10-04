@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const audit = require('../../services/audit');
 const { notify } = require('../../services/notifications');
-const { success, created, paginated, noContent } = require('../../utils/response');
+const { success, created, paginated } = require('../../utils/response');
 const { NotFoundError, AppError } = require('../../utils/errors');
 
 // Normaliza nome para busca parcial: remove acentos + caixa baixa.

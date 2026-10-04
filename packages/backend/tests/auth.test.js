@@ -4,18 +4,16 @@ const db      = require('../src/config/database');
 const bcrypt  = require('bcryptjs');
 
 // Usuário de teste criado antes dos testes
-let testUserId;
 
 beforeAll(async () => {
   const hash = await bcrypt.hash('Senha@123', 10);
-  const { rows } = await db.query(
+  await db.query(
     `INSERT INTO auth.users (name, email, password_hash, role)
      VALUES ('Test User', 'test@ris.com', $1, 'admin')
      ON CONFLICT (email) DO UPDATE SET password_hash = $1
      RETURNING id`,
     [hash]
   );
-  testUserId = rows[0].id;
 });
 
 afterAll(async () => {

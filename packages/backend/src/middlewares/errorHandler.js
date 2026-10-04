@@ -5,6 +5,7 @@ const { AppError } = require('../utils/errors');
  * Middleware global de tratamento de erros.
  * Deve ser o ÚLTIMO middleware registrado no app.
  */
+// eslint-disable-next-line no-unused-vars -- o Express só reconhece o handler de erro com 4 parâmetros
 function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
     logger.warn('AppError', {

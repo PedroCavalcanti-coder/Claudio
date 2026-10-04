@@ -6,7 +6,6 @@
  */
 const db    = require('../../config/database');
 const enc   = require('../../services/encryption');
-const audit = require('../../services/audit');
 const { success, created } = require('../../utils/response');
 const { NotFoundError, AppError } = require('../../utils/errors');
 const { assertClinicalAccess, logClinical } = require('./ehr.access');

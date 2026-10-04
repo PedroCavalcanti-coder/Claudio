@@ -74,7 +74,7 @@ function integrityHash(content) {
  * Normaliza CPF: remove pontos e traços.
  */
 function normalizeCpf(cpf) {
-  return cpf.replace(/[.\-]/g, '').trim();
+  return cpf.replace(/[.-]/g, '').trim();
 }
 
 /**

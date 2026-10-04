@@ -31,6 +31,17 @@ export default function TeleRoomPage() {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
 
+  const endCall = (notify = true) => {
+    // Notifica o outro par via sinal 'bye' (a sala já vira 'active' no 1º offer).
+    // O encerramento administrativo da sessão (status='ended') é feito na página
+    // do profissional, que tem o id da sessão — aqui só temos o room_token.
+    if (notify) teleconsultApi.postSignal(token, { sender: role, kind: 'bye', payload: {} }).catch(() => {});
+    if (pollRef.current) clearInterval(pollRef.current);
+    pcRef.current?.close();
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    setStatus('ended');
+  };
+
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -115,17 +126,6 @@ export default function TeleRoomPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, role]);
-
-  const endCall = (notify = true) => {
-    // Notifica o outro par via sinal 'bye' (a sala já vira 'active' no 1º offer).
-    // O encerramento administrativo da sessão (status='ended') é feito na página
-    // do profissional, que tem o id da sessão — aqui só temos o room_token.
-    if (notify) teleconsultApi.postSignal(token, { sender: role, kind: 'bye', payload: {} }).catch(() => {});
-    if (pollRef.current) clearInterval(pollRef.current);
-    pcRef.current?.close();
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    setStatus('ended');
-  };
 
   const toggleMic = () => { const t = localStreamRef.current?.getAudioTracks()[0]; if (t) { t.enabled = !t.enabled; setMicOn(t.enabled); } };
   const toggleCam = () => { const t = localStreamRef.current?.getVideoTracks()[0]; if (t) { t.enabled = !t.enabled; setCamOn(t.enabled); } };

@@ -7,7 +7,7 @@ import axios from 'axios';
 const ORTHANC_URL = 'http://localhost:8042';
 // Se tiver autenticação básica ativada no Orthanc:
 const AUTH = { username: 'orthanc', password: 'orthanc' };
-const axiosConfig = { auth: AUTH };
+export const axiosConfig = { auth: AUTH };
 
 // Tempo máximo de resposta (ms)
 const TIMEOUT = 5000;
