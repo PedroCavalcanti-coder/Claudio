@@ -9,6 +9,7 @@
  *  · Gestão da sessão exige teleconsult:manage (clínico). A sinalização exige só
  *    autenticação + conhecer o room_token (capability).
  */
+const env = require('../../config/env');
 const db    = require('../../config/database');
 const { success, created } = require('../../utils/response');
 const { NotFoundError, AppError } = require('../../utils/errors');
@@ -59,7 +60,8 @@ async function roomInfo(req, res) {
     [req.params.token]
   );
   if (!rows.length) throw new NotFoundError('Sala');
-  return success(res, rows[0]);
+  // ice_servers: configuração do servidor (env ICE_SERVERS); vazio na LAN. Ver docs/manuais.
+  return success(res, { ...rows[0], ice_servers: env.ICE_SERVERS });
 }
 
 // Publica um sinal (offer/answer/ICE/bye). sender = 'host' | 'guest'.

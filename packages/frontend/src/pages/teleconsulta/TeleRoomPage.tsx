@@ -6,10 +6,9 @@ import { teleconsultApi } from '../../api/endpoints';
 /**
  * Sala de teleconsulta (WebRTC P2P). Sem provedor pago e sem socket.io: a
  * sinalização (offer/answer/ICE) trafega por REST com polling; a mídia é P2P
- * direta (STUN público). `?host=1` = médico (cria a oferta); padrão = paciente.
+ * direta; STUN/TURN vêm do servidor (ICE_SERVERS) — vazio na LAN, sem internet. `?host=1` = médico (cria a oferta); padrão = paciente.
  * Rota fora do AppLayout (tela cheia), sob PrivateRoute.
  */
-const STUN = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
 const sel = (r: any) => (r.data as any).data;
 
 export default function TeleRoomPage() {
@@ -75,13 +74,14 @@ export default function TeleRoomPage() {
     (async () => {
       try {
         // valida a sala
-        await teleconsultApi.room(token);
+        const roomRes = await teleconsultApi.room(token);
+        const iceServers: RTCIceServer[] = (roomRes.data as any)?.data?.ice_servers ?? [];
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         localStreamRef.current = stream;
         if (localRef.current) localRef.current.srcObject = stream;
 
-        const pc = new RTCPeerConnection({ iceServers: STUN });
+        const pc = new RTCPeerConnection({ iceServers });
         pcRef.current = pc;
         stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
@@ -89,7 +89,7 @@ export default function TeleRoomPage() {
         pc.ontrack = (e) => { if (remoteRef.current) { remoteRef.current.srcObject = e.streams[0]; setStatus('connected'); } };
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === 'connected') setStatus('connected');
-          if (pc.connectionState === 'failed') { setStatus('error'); setErrMsg('Falha na conexão P2P (rede/NAT). Tente novamente.'); }
+          if (pc.connectionState === 'failed') { setStatus('error'); setErrMsg('Falha na conexão P2P. Na rede local o paciente precisa estar DENTRO da rede da unidade; de fora é necessário um servidor TURN configurado (ICE_SERVERS).'); }
         };
 
         if (role === 'host') {

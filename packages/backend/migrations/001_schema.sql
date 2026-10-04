@@ -2052,6 +2052,32 @@ CREATE TABLE IF NOT EXISTS ris.patient_name_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_patient_name_tokens ON ris.patient_name_tokens(token_hash);
 
+-- 21.9 Auditoria realmente imutável ----------------------------------------------
+-- A RLS acima não protegia nada: a aplicação conecta como DONA da tabela (RLS não se aplica a
+-- quem é dono, sem FORCE) e a política de SELECT dependia de um papel opcional (`ris_admin`).
+-- Um trigger vale até para o dono: UPDATE, DELETE e TRUNCATE em audit.logs levantam erro.
+-- (Para expurgo legal excepcional, um DBA desabilita o trigger conscientemente — fica registrado.)
+ALTER TABLE audit.logs DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS audit_insert_only  ON audit.logs;
+DROP POLICY IF EXISTS audit_select_admin ON audit.logs;
+
+CREATE OR REPLACE FUNCTION audit.forbid_change() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'audit.logs é imutável: % não é permitido (LGPD art. 37 / CFM 1.821)', TG_OP
+    USING ERRCODE = 'insufficient_privilege';
+END $$;
+
+DROP TRIGGER IF EXISTS trg_audit_immutable_row ON audit.logs;
+CREATE TRIGGER trg_audit_immutable_row
+  BEFORE UPDATE OR DELETE ON audit.logs
+  FOR EACH ROW EXECUTE FUNCTION audit.forbid_change();
+
+DROP TRIGGER IF EXISTS trg_audit_immutable_truncate ON audit.logs;
+CREATE TRIGGER trg_audit_immutable_truncate
+  BEFORE TRUNCATE ON audit.logs
+  FOR EACH STATEMENT EXECUTE FUNCTION audit.forbid_change();
+
 -- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================

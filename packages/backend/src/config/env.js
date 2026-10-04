@@ -72,6 +72,21 @@ const envSchema = z.object({
   LOG_TO_FILE:           boolFromString(false),
   LOG_DIR:               z.string().default('logs'),
 
+  // Servidores ICE (WebRTC) entregues à sala de teleconsulta. Padrão VAZIO: na LAN os dois lados se
+  // acham pelos candidatos locais e nada sai para a internet (o STUN do Google só atrasava o ICE
+  // offline). Para paciente FORA da rede use STUN/TURN próprio, ex.:
+  //   ICE_SERVERS=[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:turn.exemplo.gov.br:3478","username":"u","credential":"p"}]
+  ICE_SERVERS: z.string().default('[]').transform((v, ctx) => {
+    try {
+      const arr = JSON.parse(v);
+      if (!Array.isArray(arr) || arr.some((s) => !s || !s.urls)) throw new Error('formato');
+      return arr;
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'ICE_SERVERS deve ser um JSON: [{"urls":"stun:host:3478"}, …]' });
+      return z.NEVER;
+    }
+  }),
+
   ORTHANC_URL:           z.string().default('http://localhost:8042'),
   ORTHANC_USER:          z.string().default('orthanc'),
   ORTHANC_PASS:          z.string().default('orthanc'),
