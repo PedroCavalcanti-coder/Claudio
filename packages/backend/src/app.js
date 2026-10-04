@@ -135,8 +135,9 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 if (require.main === module) {
-  // Chave de criptografia errada = sistema inteiro ilegível: recusa subir, com mensagem clara.
-  require('./services/keyCheck').verifyEncryptionKey()
+  // 1) schema em dia (idempotente)  2) chave de criptografia correta — senão recusa subir, com mensagem clara.
+  Promise.resolve(env.AUTO_MIGRATE ? require('./services/migrate').migrate() : null)
+    .then(() => require('./services/keyCheck').verifyEncryptionKey())
     .then(() => start())
     .catch((err) => {
       logger.error(`❌ ${err.message}`);

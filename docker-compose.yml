@@ -25,6 +25,13 @@
 # (ou migre os volumes) — senão o compose cria volumes novos e vazios.
 name: ris-pacs
 
+# Rotação dos logs do Docker em TODOS os serviços (sem isto o json-file cresce sem limite).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
 
   # ── PostgreSQL (banco LOCAL — substitui o Neon cloud) ────────────────────
@@ -36,6 +43,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: ris-postgres
+    logging: *default-logging
     restart: unless-stopped
     ports:
       # Só localhost: ferramentas locais (psql/DBeaver) e scripts do host.
@@ -59,6 +67,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ris-redis
+    logging: *default-logging
     restart: unless-stopped
     # Sem `ports`: acessível SÓ pela rede interna do compose (o backend usa
     # redis:6379). Não exposto ao host/LAN.
@@ -76,6 +85,7 @@ services:
     # armazenamento de laudos/DICOM. Atualize de propósito, testando o restore.
     image: rustfs/rustfs:1.0.0
     container_name: ris-rustfs
+    logging: *default-logging
     restart: unless-stopped
     # Sem `ports`: S3 (9000) só pela rede interna (backend usa rustfs:9000).
     # Console 9001 era só dev — fechado no piloto. Para inspecionar buckets
@@ -96,6 +106,7 @@ services:
   volumes-init:
     image: busybox:1.36
     container_name: ris-volumes-init
+    logging: *default-logging
     restart: "no"
     command: ["sh", "-c", "chown 10001:10001 /worklists && chmod 755 /worklists"]
     volumes:
@@ -107,6 +118,7 @@ services:
     # formato do índice/plugins. Atualize de propósito.
     image: jodogne/orthanc-plugins:1.12.11
     container_name: ris-orthanc
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "127.0.0.1:8042:8042"   # REST + web UI — só local (debug do admin)
@@ -130,6 +142,7 @@ services:
       context: ./packages/backend
       dockerfile: Dockerfile
     container_name: ris-backend
+    logging: *default-logging
     restart: unless-stopped
     ports:
       # Só local: a LAN acessa a API via nginx do frontend (proxy /api → backend:3000).
@@ -177,6 +190,7 @@ services:
         # Vite resolve durante o build estático
         VITE_API_URL: /api/v1
     container_name: ris-frontend
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "80:80"     # redireciona → 443

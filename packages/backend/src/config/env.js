@@ -31,6 +31,8 @@ const envSchema = z.object({
   DATABASE_POOL_MIN:     z.coerce.number().default(2),
   DATABASE_POOL_MAX:     z.coerce.number().default(20),
   DATABASE_SSL:          boolFromString(false),
+  // Reaplica o schema (idempotente) a cada boot. Desligue só se a migração for feita à parte.
+  AUTO_MIGRATE:          boolFromString(true),
 
   REDIS_URL:             z.string().default('redis://localhost:6379'),
 
@@ -66,6 +68,9 @@ const envSchema = z.object({
 
   BCRYPT_ROUNDS:         z.coerce.number().default(12),
   LOG_LEVEL:             z.enum(['error','warn','info','debug']).default('info'),
+  // Arquivo de log (opcional, com rotação). Padrão: só console → `docker compose logs backend`.
+  LOG_TO_FILE:           boolFromString(false),
+  LOG_DIR:               z.string().default('logs'),
 
   ORTHANC_URL:           z.string().default('http://localhost:8042'),
   ORTHANC_USER:          z.string().default('orthanc'),
