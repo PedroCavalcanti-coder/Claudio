@@ -14,7 +14,8 @@ let browserPromise = null;
 async function getBrowser() {
   if (browserPromise) return browserPromise;
 
-  const puppeteer = require('puppeteer');
+  // puppeteer ≥ 25 é só-ESM: import() dinâmico funciona a partir do CommonJS
+  const puppeteer = (await import('puppeteer')).default;
   // No container Docker (linux/glibc) usamos Chromium do sistema quando disponível
   // para evitar baixar 250MB no build. O Dockerfile instala o binário via apt.
   const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;

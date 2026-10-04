@@ -5,7 +5,7 @@
 // Ex:  node verify_password.js "admin123456" "$2a$12$MUJ6y1n7m6JXjt5cMhfWQerwHueUjfb48sy5teta7MSUvGXxxQlcS"
 // =============================================================================
 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 async function main() {
   const args = process.argv.slice(2);

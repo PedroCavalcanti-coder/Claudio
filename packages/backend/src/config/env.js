@@ -55,13 +55,6 @@ const envSchema = z.object({
   RESEND_API_KEY:        z.string().optional(),
   EMAIL_FROM:            z.string().default('RIS/PACS <noreply@example.com>'),
 
-  // SMTP: fallback legado, mantido apenas para compatibilidade.
-  SMTP_HOST:             z.string().optional(),
-  SMTP_PORT:             z.coerce.number().default(587),
-  SMTP_USER:             z.string().optional(),
-  SMTP_PASS:             z.string().optional(),
-  SMTP_FROM:             z.string().optional(),
-
   RATE_LIMIT_WINDOW_MS:  z.coerce.number().default(900000),
   // Global: por USUÁRIO/conta (não por IP — vários funcionários atrás do mesmo NAT). Teto anti-abuso.
   RATE_LIMIT_MAX:        z.coerce.number().default(2000),
