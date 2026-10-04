@@ -6,7 +6,7 @@
 
 **1. Cadastrar paciente**
 Menu **Pacientes** → **Novo Paciente** → preencher nome, nascimento, CPF, CNS,
-telefone → marcar o **aceite dos Termos/LGPD** → **Cadastrar**.
+telefone → marcar o **aceite dos Termos/LGPD** → **Cadastrar** (recepção e enfermagem podem cadastrar).
 Busca antes de cadastrar (nome + nascimento) para não duplicar.
 
 **2. Agendar (exame, consulta ou teleconsulta)**
@@ -16,9 +16,9 @@ Menu **Agendamento** → **Novo** → buscar paciente → escolher **Tipo**:
 → **Criar**. Imprimir **Comprovante** (botão na linha) e entregar ao paciente.
 
 **3. Check-in (paciente chegou)**
-Agendamento → **Check-in** → CPF + senha do paciente + **aceite dos Termos** →
-Confirmar. No 1º acesso isso **cria a conta do portal** do paciente.
-Consulta/teleconsulta: o check-in coloca o paciente na **fila médica**.
+Agendamento → **Check-in** → confira o documento do paciente e informe **CPF, CNS
+ou número do documento** → Confirmar. **Não precisa de senha** e não cria conta do
+portal. Consulta/teleconsulta: o check-in coloca o paciente na **fila médica**.
 
 **4. Liberar acesso ao portal (sem exame)**
 Pacientes → botão **Portal** na linha → o sistema mostra uma **senha temporária** →

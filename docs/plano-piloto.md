@@ -12,6 +12,13 @@
 > idempotentes anexadas em `packages/backend/migrations/001_schema.sql`, frontend
 > mantém `tsc --noEmit` = 0 erros. NÃO commitar/pushar — o dono gere o git.
 
+> **Atualização (backlog de lançamento, out/2026):** o instalador agora é `scripts/setup.sh` +
+> `scripts/bootstrap.js` (não há mais senhas seed a rotacionar numa instalação nova); o check-in
+> confere identidade por CPF/CNS/documento (sem senha de portal); o schema se aplica no boot.
+> `tsc --noEmit` = 0 e os testes automatizados (`packages/backend`, `npm test`) cobrem o fluxo
+> clínico — o "E2E 13/13" abaixo é um smoke histórico, não garantia geral. Veja
+> `docs/implantacao-checklist.md` e `docs/backlog-lancamento.md`.
+
 ## STATUS DE EXECUÇÃO (2026-06-29)
 
 **Fase 0 — FEITO (código/config); alguns passos RODAM no deploy:**

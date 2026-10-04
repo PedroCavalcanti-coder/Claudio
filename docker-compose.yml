@@ -13,10 +13,10 @@
 # Email é **Resend SaaS** (HTTPS via RESEND_API_KEY) — opcional.
 #
 # Uso:
-#   1. cp .env.example .env  e preencha
-#   2. docker compose build
-#   3. docker compose up -d
-#   4. Frontend em http://localhost · API em http://localhost:3000/api/v1
+#   1. SERVER_IP=<ip da LAN> bash scripts/setup.sh   (gera .env com segredos + certificado)
+#   2. docker compose build && docker compose up -d
+#   3. docker compose exec backend node scripts/bootstrap.js --email admin@...
+#   4. Frontend em https://<ip> · API em https://<ip>/api/v1 (backend só em 127.0.0.1:3000)
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Nome de projeto FIXO: os volumes ficam `ris-pacs_postgres-data`, `ris-pacs_orthanc-data`…

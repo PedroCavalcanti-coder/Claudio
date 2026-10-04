@@ -314,9 +314,12 @@ O RBAC é **granular** (`resource:action`) com **overrides por usuário**
   médico** plantonista (obrigatória em consulta/teleconsulta), prioridade,
   indicação clínica, **comprovante imprimível** (substitui confirmação por
   SMS/e-mail no piloto).
-- **Check-in** com validação de CPF + criação/validação de conta do portal +
-  **aceite de termos auditável**. Em consulta/teleconsulta, o check-in **abre
-  o atendimento clínico** e entra na fila médica automaticamente.
+- **Check-in** com **conferência de identidade** (CPF, CNS ou documento — sem
+  senha de portal) e registro de quem/como verificou. A conta do portal é
+  **opcional** (botão *Portal* em Pacientes). Em consulta/teleconsulta, o
+  check-in **abre o atendimento clínico** e entra na fila médica
+  automaticamente. Agenda clínica bloqueia dupla marcação do mesmo
+  médico/horário (override explícito `allow_overbooking`).
 - **Atendimento avulso (walk-in)** — entra já em check-in.
 - **Worklist** do técnico (exames do dia, por unidade) + MWL para o Orthanc.
 - **Procedimentos por unidade** com janela de horário por procedimento.
@@ -475,11 +478,20 @@ Detalhamento campo a campo no README do backend.
 - **Auditoria:** ações sensíveis vão para `audit.logs`.
 - **Consentimento (LGPD) auditável:** o aceite dos Termos de Uso é exigido
   (checkbox + link para `/termos`) no **cadastro de paciente**, no
-  **check-in** (criação da conta do portal) e na **criação de funcionário** —
+  **criação de conta do portal** e na **criação de funcionário** —
   e o aceite é **gravado na auditoria** (`terms_accepted`), não é só um gate
   de tela. Export e log de acesso por paciente disponíveis.
 - **Painel de TV** expõe só ficha + primeiro nome + sala (sem dado clínico).
-- **Rate-limit** em login e portal.
+- **Rate-limit** por identidade (usuário/conta do portal/sala), com limite
+  separado para login (falhas por IP+identificador) e rotas de alto volume
+  (painel, teleconsulta) — variáveis `RATE_LIMIT_MAX`, `AUTH_IP_RATE_LIMIT_MAX`,
+  `PORTAL_RATE_LIMIT_MAX`.
+- **Troca de senha obrigatória** no primeiro acesso (senhas temporárias geradas
+  pelo servidor); **auditoria imutável** (triggers bloqueiam UPDATE/DELETE em
+  `audit.logs`); **ENCRYPTION_KEY** verificada no boot por um canário.
+- **Testes e CI:** `cd packages/backend && npm test` (jest, banco `_test`
+  isolado, S3/Orthanc falsos); `.github/workflows/ci.yml` roda lint, testes,
+  `tsc`, build, `npm audit`, validação do compose e gitleaks.
 - **Credenciais de demonstração:** o seed cria contas com senhas conhecidas
   (`admin123456` etc.) — **rotacionadas obrigatoriamente antes do piloto** via
   `scripts/rotate_seed_passwords.js`, que gera senhas fortes e as imprime uma
@@ -516,7 +528,7 @@ O plano completo de hardening, QA e operação está em
 - **Banco Postgres LOCAL** (container, não gerenciado) — elimina a
   dependência de internet para o piloto na LAN; o driver `pg` padrão permite
   trocar para um Postgres gerenciado (Neon, RDS…) só mudando `DATABASE_URL`.
-  Um script (`migrate_org_from_neon.js`) importa usuários/unidades de um Neon
+  Um script legado (`scripts/legacy/migrate_org_from_neon.js`) importa usuários/unidades de um Neon
   existente por **chave natural** (email/CNES), preservando os UUIDs locais
   para não quebrar as FKs de dados já cadastrados.
 - **PII cifrada na aplicação** (não no banco) — a chave nunca toca o Postgres;

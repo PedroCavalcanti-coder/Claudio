@@ -425,11 +425,11 @@ O backend usa o driver **`pg`** padrão (TCP), não o `@neondatabase/serverless`
   (`{ rejectUnauthorized: false }`); sem esses indícios, roda sem SSL (padrão
   do Postgres local).
 
-**Migração de dados existentes (Neon → local):** `scripts/migrate_org_from_neon.js`
+**Migração de dados existentes (Neon → local):** `scripts/legacy/migrate_org_from_neon.js`
 importa `auth.users` e `ris.health_units` por **chave natural** (email para
 usuários; CNES → CNPJ → nome para unidades) em vez de copiar os UUIDs do Neon
 — assim os registros que já referenciam esses IDs no banco local (modalidades,
-salas, procedimentos por unidade, semeados por `002_seed.sql`) continuam
+salas, procedimentos por unidade, semeados por `seed_demo.sql`) continuam
 válidos. É idempotente (roda de novo sem duplicar) e verifica ao final que não
 sobrou nenhuma FK `health_unit_id` órfã antes de commitar.
 
@@ -460,11 +460,13 @@ Principais (`config/env.js`), em `packages/backend/.env`:
 
 ## 11. Scripts, migrations e QA
 
-- **Schema:** `migrations/001_schema.sql` (idempotente, §1 a §20). **Seed:**
-  `002_seed.sql` (unidades + funcionários por tipo).
+- **Schema:** `migrations/001_schema.sql` (idempotente, §1 a §21; aplicado no boot).
+  **Seeds:** `seed_catalogos.sql` (catálogos, seguro em produção) e `seed_demo.sql`
+  (só desenvolvimento/testes). Instalação nova: `scripts/bootstrap.js`.
+- **Testes:** `npm test` (jest + banco `_test` criado no globalSetup); `npm run lint`.
 - **`scripts/seed_catalog.js`** — popula CID-10, catálogo de medicamentos e
   interações (curado, idempotente; a carga oficial ANVISA/DATASUS é passo à parte).
-- **`scripts/migrate_org_from_neon.js`** — importa usuários/unidades de um
+- **`scripts/legacy/migrate_org_from_neon.js`** — importa usuários/unidades de um
   Neon existente por chave natural (ver §9).
 - **`scripts/rotate_seed_passwords.js`** — troca as senhas das contas de
   demonstração (`%@clinica.com.br`, `%@rede.local`) por senhas fortes geradas

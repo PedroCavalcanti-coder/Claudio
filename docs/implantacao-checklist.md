@@ -13,70 +13,81 @@ Marque `[x]` ao concluir. Comandos assumem repositório em `/opt/ris-pacs` (ajus
 - [ ] `openssl` instalado (gera o certificado).
 
 ## 1. Código + segredos (fora do git)
-- [ ] Copiar o repositório para o servidor.
-- [ ] Copiar os arquivos **NÃO versionados** (do ambiente atual): `.env` (raiz),
-      `packages/backend/.env`, e o dump `infra/db/ris_pacs_dump.sql`.
-- [ ] **Manter os mesmos** `ENCRYPTION_KEY`, `KEY_ENCRYPTION_KEY` e `JWT_*` do
-      ambiente de origem — senão PII cifrada e tokens antigos quebram.
-- [ ] No `.env` raiz, ajustar hosts para o IP do servidor:
-      `FRONTEND_URL=https://192.168.1.50` (o compose já sobrescreve p/ o backend;
-      confira que não sobrou `localhost`).
+- [ ] Copiar o repositório para o servidor (`git clone`).
+- [ ] **Instalação nova:** `SERVER_IP=192.168.1.50 bash scripts/setup.sh` — gera o `.env`
+      com TODOS os segredos aleatórios (JWT, `ENCRYPTION_KEY`, `KEY_ENCRYPTION_KEY`,
+      senhas do Postgres/RustFS/Orthanc, `ORTHANC_WEBHOOK_SECRET`) e o certificado TLS (passo 2).
+- [ ] **Faça backup do `.env` em cofre/disco externo.** Sem `ENCRYPTION_KEY`/`KEY_ENCRYPTION_KEY`
+      os dados pessoais cifrados não são recuperáveis — nem de um backup do banco.
+      (O backend recusa subir se a `ENCRYPTION_KEY` não bater com a do banco.)
+- [ ] **Migração de ambiente existente:** copie o `.env` antigo (mesmas chaves!) em vez de
+      rodar o `setup.sh`. Instalação antiga com volumes de outro nome de pasta? Suba com
+      `COMPOSE_PROJECT_NAME=<nome antigo>` (o compose agora fixa o projeto `ris-pacs`).
+- [ ] Conferir que não sobrou `localhost` em `FRONTEND_URL` (deve ser `https://<ip>`).
 
 ## 2. Certificado TLS (obrigatório — teleconsulta exige HTTPS)
-- [ ] `SERVER_IP=192.168.1.50 sh infra/tls/gen-cert.sh`
-      (gera `infra/tls/server.crt|key` com o IP no SAN).
-- [ ] Conferir: `ls infra/tls/` mostra `server.crt` e `server.key`.
+- [ ] O `setup.sh` já gera. Para regerar/renovar: `SERVER_IP=192.168.1.50 sh infra/scripts/gen-cert.sh`
+      (`infra/tls/server.crt|key`, com o IP no SAN). Depois `docker compose up -d frontend`.
 
 ## 3. Banco de dados (Postgres local)
-- [ ] `docker compose up -d postgres` e aguardar `healthy`
-      (`docker compose ps` → ris-postgres healthy).
-- [ ] Restaurar os dados:
-      `PW=$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)`
-      `docker compose exec -T -e PGPASSWORD="$PW" postgres psql -U ris -d ris_pacs < infra/db/ris_pacs_dump.sql`
-- [ ] Conferir: `docker compose exec -T -e PGPASSWORD="$PW" postgres psql -U ris -d ris_pacs -tAc "SELECT count(*) FROM auth.users"` → deve bater com a origem (ex.: 31).
-- [ ] **Alternativa sem dump** (banco novo, precisa internet 1x p/ Neon):
-      aplicar `migrations/001_schema.sql` + `002_seed.sql`, depois
-      `node scripts/seed_catalog.js` e `NEON_URL=... node scripts/migrate_org_from_neon.js`.
+- [ ] O schema é aplicado **automaticamente no boot do backend** (`AUTO_MIGRATE`, idempotente,
+      com lock) — atualizar = `git pull && docker compose up -d --build`.
+- [ ] `docker compose up -d postgres` e aguardar `healthy`.
+- [ ] **Banco novo:** depois do passo 4, crie o administrador e carregue os catálogos:
+      `docker compose exec backend node scripts/bootstrap.js --email admin@sua-prefeitura.gov.br`
+      (imprime a senha **uma vez**; o sistema exige a troca no 1º acesso).
+- [ ] **Restaurar um dump** (opcional): `PW=$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)` e
+      `docker compose exec -T -e PGPASSWORD="$PW" postgres psql -U ris -d ris_pacs < dump.sql`.
+- [ ] Conferir contagem: `... psql -U ris -d ris_pacs -tAc "SELECT count(*) FROM auth.users"`.
 
 ## 4. Subir a stack
 - [ ] `docker compose build backend frontend`
 - [ ] `docker compose up -d`
-- [ ] `docker compose ps` → **6 containers** running/healthy
-      (postgres, redis, rustfs, orthanc, backend, frontend).
+- [ ] `docker compose ps` → postgres, redis, rustfs, orthanc, backend, frontend
+      running/healthy (mais os jobs one-shot `volumes-init`/`rustfs-init`, que terminam sozinhos).
 
 ## 5. Segurança pós-boot
-- [ ] **Rotacionar senhas de seed/demo**:
-      `docker compose exec -T backend node scripts/rotate_seed_passwords.js`
+- [ ] Instalação **nova** via `bootstrap.js` não tem contas de demonstração. Só se a base veio de
+      um dump antigo com contas demo: `docker compose exec -T backend node scripts/rotate_seed_passwords.js`
       → copiar a saída (email→senha) p/ um cofre e **limpar o terminal**.
-      (Ou rodar do host: `cd packages/backend && node scripts/rotate_seed_passwords.js`.)
+- [ ] **Dono do projeto:** se o repositório já teve credenciais do Neon no histórico (ou vai
+      ficar público), **troque a senha do Neon** e, se necessário, reescreva o histórico — não é
+      resolvido por código. `docs/screenshot/` (local, fora do git) deve ser revisado antes de publicar.
 - [ ] Conferir que as portas internas estão fechadas: de OUTRA máquina da LAN,
       `nc -vz 192.168.1.50 6379` e `...:5432` e `...:9000` devem **falhar**;
-      `...:443` e `...:4242` devem **abrir**.
+      `...:443` e `...:4242` devem **abrir**. Restrinja a **4242 no firewall do servidor aos IPs
+      dos equipamentos** (C-STORE não tem autenticação) — ex.: `ufw allow from <ip-aparelho> to any port 4242`.
 - [ ] `NODE_ENV=production` ativo (`docker compose exec backend printenv NODE_ENV`).
 
 ## 6. Smoke de verificação
 - [ ] `curl -sk https://192.168.1.50/healthz` → `ok`.
-- [ ] `curl -sk -X POST https://192.168.1.50/api/v1/auth/login_admin -H "Content-Type: application/json" -d '{"email":"admin@clinica.com.br","password":"NOVA_SENHA"}'` → 200 (usar a senha rotacionada).
-- [ ] **E2E HTTP**: `docker compose exec -T backend node scripts/e2e_http_smoke.js`
-      (ajustar o admin/senha no script se rotacionou) → 13/13 PASS.
+- [ ] `curl -sk -X POST https://192.168.1.50/api/v1/auth/login_admin -H "Content-Type: application/json" -d '{"email":"<admin do bootstrap>","password":"<senha atual>"}'` → 200.
+- [ ] **E2E HTTP** (opcional; precisa de dados de demonstração e das credenciais configuradas no
+      script): `scripts/e2e_http_smoke.js`. Para validar o código, o fluxo clínico completo está nos
+      testes automatizados (`cd packages/backend && npm test`), não em produção.
 - [ ] Abrir `https://192.168.1.50` no navegador de outra máquina (aceitar o aviso de
       cert self-signed) → tela de login carrega.
 - [ ] **Teleconsulta**: em 2 máquinas da LAN, médico cria sala e "paciente" entra —
-      câmera/mic conectam (só funciona por HTTPS; por isso o passo 2).
+      câmera/mic conectam (só funciona por HTTPS; por isso o passo 2). **Só funciona dentro da
+      LAN**: paciente em casa exige servidor TURN/STUN próprio (`ICE_SERVERS` no `.env`).
 
 ## 7. Backup automático
-- [ ] Rodar 1x manual: `bash infra/backup/backup.sh` → confere `backups/daily/pg_*.sql.gz`.
+- [ ] Defina `BACKUP_PASSPHRASE` (backup cifrado) conforme `infra/backup/backup.sh` e guarde-a com o `.env`.
+- [ ] Rodar 1x manual: `bash infra/backup/backup.sh` → confere `backups/daily/`.
 - [ ] Testar restore: `bash infra/backup/restore-test.sh` → "Restore VÁLIDO".
 - [ ] Agendar no cron do host (não do container):
       `crontab -e` → `30 2 * * * cd /opt/ris-pacs && bash infra/backup/backup.sh >> /var/log/rispacs-backup.log 2>&1`
 - [ ] (Recomendado) copiar `backups/` p/ um disco/rede externa periodicamente.
 
 ## 8. Configuração operacional (pela UI, como admin)
-- [ ] Login admin (senha rotacionada) → cadastrar/ajustar **unidades reais**, **equipe**
+- [ ] Login admin (troca de senha obrigatória no 1º acesso) → siga o **checklist de configuração
+      inicial** da tela inicial do admin; cadastrar/ajustar **unidades reais**, **equipe**
       (papel + unidade), **turnos**, **procedimentos por unidade**, **modalidades/salas**.
-- [ ] Criar as contas reais de funcionário (senha inicial entregue no balcão).
+- [ ] Criar as contas reais de funcionário (o sistema gera a senha temporária — exibida uma vez;
+      o funcionário troca no 1º acesso).
 - [ ] Configurar equipamentos DICOM da unidade p/ enviar C-STORE ao servidor
-      (AE title do Orthanc, IP do servidor, porta **4242**).
+      (AE title do Orthanc, IP do servidor, porta **4242**). Estudos sem agendamento correspondente
+      caem na aba **Estudos não vinculados** (técnico/admin vinculam ou descartam).
 
 ## 9. Antes de abrir ao público interno
 - [ ] Conferir termo de consentimento LGPD no cadastro de paciente (módulo consent).

@@ -25,7 +25,7 @@ Ambos geram documento assinado.
 **5. Teleconsulta**
 Menu **Teleconsulta** → buscar paciente → **Nova sala** → o paciente entra pelo
 **portal** (banner “Entrar na sala”). Clique **Entrar** para iniciar o vídeo.
-Precisa de câmera/microfone e do acesso por HTTPS.
+Precisa de câmera/microfone e do acesso por HTTPS. Sem servidor TURN (`ICE_SERVERS`), só funciona com médico e paciente **na mesma rede local**.
 
 **6. Concluir**
 Ao concluir o atendimento, a evolução/receita são assinadas e o caso fecha.
@@ -33,4 +33,4 @@ A evolução assinada é **imutável** — correções viram **adendo**.
 
 ## Observações
 - Laudo de imagem: se você também for radiologista, use **Laudos**.
-- Senha esquecida: peça reset ao **administrador**.
+- Senha esquecida: peça reset ao **administrador** (a senha temporária obriga a trocar no 1º acesso).
