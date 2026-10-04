@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link2, Trash2, Search } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from '../../components/ui/Toast';
 import { studiesApi, patientsApi } from '../../api/endpoints';
 import { EmptyState, Modal, Spinner, Field } from '../../components/ui';
 import { formatDate, getErrorMessage } from '../../utils/format';
