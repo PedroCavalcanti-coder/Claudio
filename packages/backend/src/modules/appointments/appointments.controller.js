@@ -234,7 +234,7 @@ async function create(req, res) {
     throw new AppError('Consulta exige um médico; nenhum plantonista disponível no horário', 422, 'NO_DOCTOR');
   }
 
-  const { rows } = await db.query(
+  const insertAppt = (q) => q(
     `INSERT INTO ris.appointments
        (patient_id, appointment_kind, procedure_id, modality_id, room_id,
         requesting_user_id, requesting_physician_id, assigned_doctor_id,
@@ -259,6 +259,32 @@ async function create(req, res) {
       unitId,
     ]
   );
+
+  let rows;
+  if (isClinical && !body.allow_overbooking) {
+    // O médico não pode estar em duas consultas ao mesmo tempo. Trava por médico dentro de
+    // transação para dois agendamentos simultâneos não passarem juntos pela checagem.
+    ({ rows } = await db.transaction(async (client) => {
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`doctor-slot:${assignedDoctorId}`]);
+      const { rows: clash } = await client.query(
+        `SELECT id, scheduled_at FROM ris.appointments
+          WHERE assigned_doctor_id = $1
+            AND appointment_kind IN ('consultation', 'teleconsultation')
+            AND status NOT IN ('cancelled', 'no_show')
+            AND scheduled_at < ($2::timestamptz + ($3 * INTERVAL '1 minute'))
+            AND (scheduled_at + (duration_minutes * INTERVAL '1 minute')) > $2::timestamptz
+          LIMIT 1`,
+        [assignedDoctorId, body.scheduled_at, body.duration_minutes]);
+      if (clash.length) {
+        throw new AppError(
+          'O médico já tem consulta nesse horário. Escolha outro horário ou marque como encaixe.',
+          409, 'DOCTOR_BUSY', { conflicting_appointment_id: clash[0].id, scheduled_at: clash[0].scheduled_at });
+      }
+      return insertAppt((text, params) => client.query(text, params));
+    }));
+  } else {
+    ({ rows } = await insertAppt((text, params) => db.query(text, params)));
+  }
 
   setImmediate(() => notify('appointment.created', { appointmentId: rows[0].id }));
   // Confirmação por SMS/WhatsApp é best-effort: sem provedor configurado
@@ -347,6 +373,26 @@ async function createWalkIn(req, res) {
 async function update(req, res) {
   const { id } = req.params;
   const body = req.body;
+
+  // Remarcar consulta/teleconsulta: mesma regra do agendamento — o médico não pode ficar em duas.
+  if ((body.scheduled_at || body.duration_minutes) && !body.allow_overbooking) {
+    const { rows: cur } = await db.query(
+      `SELECT assigned_doctor_id, appointment_kind, scheduled_at, duration_minutes
+         FROM ris.appointments WHERE id = $1 AND status IN ('scheduled','confirmed')`, [id]);
+    const a = cur[0];
+    if (a && a.assigned_doctor_id && a.appointment_kind !== 'imaging') {
+      const { rows: clash } = await db.query(
+        `SELECT id FROM ris.appointments
+          WHERE id <> $1 AND assigned_doctor_id = $2
+            AND appointment_kind IN ('consultation', 'teleconsultation')
+            AND status NOT IN ('cancelled', 'no_show')
+            AND scheduled_at < ($3::timestamptz + ($4 * INTERVAL '1 minute'))
+            AND (scheduled_at + (duration_minutes * INTERVAL '1 minute')) > $3::timestamptz
+          LIMIT 1`,
+        [id, a.assigned_doctor_id, body.scheduled_at || a.scheduled_at, body.duration_minutes || a.duration_minutes]);
+      if (clash.length) throw new AppError('O médico já tem consulta nesse horário.', 409, 'DOCTOR_BUSY');
+    }
+  }
 
   const { rowCount } = await db.query(
     `UPDATE ris.appointments

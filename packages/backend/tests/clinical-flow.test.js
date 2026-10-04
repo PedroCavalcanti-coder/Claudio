@@ -6,7 +6,7 @@
  * P0-4 (buckets) e P1-2 (busca de paciente).
  */
 const db = require('../src/config/database');
-const { as, anon, uniqueCpf } = require('./helpers/api');
+const { as, anon, uniqueCpf, uniqueSlot } = require('./helpers/api');
 
 // Lê a resposta como Buffer (PDF).
 const binary = (res, cb) => { const c = []; res.on('data', (d) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); };
@@ -41,7 +41,7 @@ describe('Consulta: do cadastro ao portal', () => {
     const res = await recep.post('/appointments', {
       patient_id: patientId, appointment_kind: 'consultation',
       assigned_doctor_id: doctor.user.id,
-      scheduled_at: new Date(Date.now() + 3600e3).toISOString(),
+      scheduled_at: uniqueSlot(),
       reason: 'Dor de cabeça persistente', specialty: 'Clínica geral',
     });
     expect(res.status).toBe(201);

@@ -31,7 +31,7 @@ function addStudy({ id, studyUID, accession = '', patientId = '', patientName = 
     MainDicomTags: { SeriesInstanceUID: `${studyUID}.1`, Modality: modality, SeriesNumber: '1' },
   });
   store.studies.set(id, {
-    ID: id, Series: [seriesId], LastUpdate: lastUpdate || '20261002T101500',
+    ID: id, Series: [seriesId], LastUpdate: lastUpdate || new Date().toISOString().replace(/[-:]/g, '').slice(0, 15),   // AAAAMMDDTHHMMSS (agora)
     MainDicomTags: { StudyInstanceUID: studyUID, AccessionNumber: accession, StudyDate: date, StudyTime: time, StudyDescription: description },
     PatientMainDicomTags: { PatientID: patientId, PatientName: patientName },
   });

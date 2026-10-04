@@ -51,4 +51,11 @@ let cpfSeq = 0;
 /** CPF único de 11 dígitos (o validador do backend só confere o formato). */
 const uniqueCpf = () => String(30000000000 + Date.now() % 1e8 * 100 + (cpfSeq++ % 100)).slice(0, 11);
 
-module.exports = { app, request, P, login, as, anon, uniqueCpf, LOGINS };
+let slotSeq = 0;
+/**
+ * Horário de consulta único (ISO) bem no futuro. Os arquivos de teste compartilham o banco e o
+ * mesmo médico do seed: dois testes marcando "daqui a 1 h" bateriam na regra de conflito de agenda.
+ */
+const uniqueSlot = () => new Date(Date.UTC(2033, 0, 1) + (Math.floor(Math.random() * 20000) * 1800e3) + (slotSeq++ % 7) * 60e3).toISOString();
+
+module.exports = { uniqueSlot, app, request, P, login, as, anon, uniqueCpf, LOGINS };

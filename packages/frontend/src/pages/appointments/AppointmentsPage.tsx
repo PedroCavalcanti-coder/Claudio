@@ -358,6 +358,13 @@ export default function AppointmentsPage() {
   const createMut = useMutation({
     mutationFn: (d: FormData) => appointmentsApi.create(d as any),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['appointments'] }); setModal(false); },
+    onError: (err: any, vars) => {
+      // Médico já tem consulta nesse horário: a recepção pode marcar como ENCAIXE (decisão explícita).
+      if (err?.response?.data?.code === 'DOCTOR_BUSY'
+          && window.confirm(`${err.response.data.message}\n\nMarcar mesmo assim como encaixe?`)) {
+        createMut.mutate({ ...(vars as any), allow_overbooking: true });
+      }
+    },
   });
 
   const checkInMut = useMutation({

@@ -28,6 +28,8 @@ const appointmentBase = z.object({
   priority:                z.number().int().min(0).max(2).default(0),
   clinical_indication:     z.string().optional(),
   notes:                   z.string().optional(),
+  // Encaixe: permite sobrepor outra consulta do mesmo médico (decisão explícita da recepção)
+  allow_overbooking:       z.boolean().optional(),
 });
 const appointmentSchema = appointmentBase.refine(
   (d) => d.appointment_kind !== 'imaging' || !!d.procedure_id,

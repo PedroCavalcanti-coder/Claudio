@@ -2,7 +2,7 @@
 /** P1-10: exclusão permanente — anonimiza quando há registro clínico (guarda de 20 anos). */
 const db = require('../src/config/database');
 const storage = require('../src/config/storage');
-const { as, uniqueCpf } = require('./helpers/api');
+const { as, uniqueCpf, uniqueSlot } = require('./helpers/api');
 
 let admin, recep, doctor;
 const novo = async (name, extra = {}) => (await recep.post('/patients', { name, birth_date: '1975-08-20', gender: 'F', cpf: uniqueCpf(), ...extra })).body.data;
@@ -30,7 +30,7 @@ describe('exclusão permanente de paciente', () => {
     const p = await novo('Maria Aparecida Souza', { cpf, phone: '11999998888', email: 'maria@x.com' });
     const ap = (await recep.post('/appointments', {
       patient_id: p.id, appointment_kind: 'consultation', assigned_doctor_id: doctor.user.id,
-      scheduled_at: new Date(Date.now() + 3600e3).toISOString(), reason: 'Tosse' })).body.data.id;
+      scheduled_at: uniqueSlot(), reason: 'Tosse' })).body.data.id;
     expect((await recep.patch(`/appointments/${ap}/checkin`, { cpf })).status).toBe(200);   // abre o encounter
     const { rows: [e] } = await db.query(`SELECT id FROM ehr.encounters WHERE patient_id = $1`, [p.id]);
     const note = (await doctor.post(`/ehr/encounters/${e.id}/notes`, { subjective: 'Tosse seca', assessment: 'IVAS', plan: 'Repouso' })).body.data.id;
