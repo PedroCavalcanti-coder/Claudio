@@ -181,21 +181,22 @@ liga SSL automaticamente.
 
 ## 5. Como executar
 
-Pré-requisitos: **Docker + Docker Compose**, `openssl` (para o certificado
-TLS) e um `.env` na raiz (copie de `.env.example`) com `POSTGRES_PASSWORD`,
-chaves `JWT_*`, `ENCRYPTION_KEY` etc.
+Pré-requisitos: **Docker + Docker Compose v2**, `bash` e `openssl`. **Instalação nova** — do zero,
+sem dump e sem internet:
 
 ```bash
-# 1. gerar o certificado TLS (self-signed, piloto LAN)
-sh infra/tls/gen-cert.sh                       # ou: SERVER_IP=192.168.x.x sh infra/tls/gen-cert.sh
+# 1. gera o .env COMPLETO (chaves JWT, AES, senhas do Postgres/RustFS/Orthanc, segredo do webhook)
+#    e o certificado TLS auto-assinado (com o IP do servidor no SAN)
+SERVER_IP=192.168.1.50 bash scripts/setup.sh
+#    >>> copie o .env para um cofre: sem ENCRYPTION_KEY/KEY_ENCRYPTION_KEY os dados cifrados são irrecuperáveis
 
-# 2. subir o banco e aplicar schema/seed (primeira vez)
-docker compose up -d postgres
-#   ... aplicar migrations/001_schema.sql + 002_seed.sql (ver README do backend)
-
-# 3. subir tudo
+# 2. sobe tudo (o backend cria os buckets do RustFS e aplica o schema sozinho no boot)
 docker compose build
 docker compose up -d
+
+# 3. catálogos + primeiro administrador (senha aleatória, impressa UMA vez; troca obrigatória no 1º login)
+docker compose exec backend node scripts/bootstrap.js --email admin@sua-prefeitura.gov.br
+#    depois, no sistema: Painel Admin → "Configuração inicial" (unidade → equipamentos → procedimentos → turnos → equipe)
 
 # logs
 docker compose logs -f backend
@@ -226,13 +227,20 @@ pnpm dev:frontend   # só frontend (vite)
 ### Migrations e seed
 
 O schema fica em `packages/backend/migrations/001_schema.sql` (idempotente:
-`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`). Seed inicial em
-`002_seed.sql`. Scripts utilitários em `packages/backend/scripts/` —
-`seed_catalog.js` (CID-10 e medicamentos), `rotate_seed_passwords.js`
-(troca as senhas de demonstração antes de operar de verdade),
-`e2e_http_smoke.js` (fumaça ponta-a-ponta autenticada dos módulos novos),
-`migrate_org_from_neon.js` (importa usuários/unidades de um Neon existente,
-por chave natural, preservando os UUIDs locais).
+`IF NOT EXISTS`, `OR REPLACE`, `DO…EXCEPTION`) e **é reaplicado a cada boot** do backend
+(`AUTO_MIGRATE`, com lock de migração): atualizar = `git pull && docker compose up -d --build`.
+Dados:
+
+- `seed_catalogos.sql` — catálogos de **produção** (procedimentos-base, templates, SLA, TCLE, CID-10);
+- `seed_demo.sql` — unidades e ~30 usuários de **demonstração** com senhas conhecidas (**só dev/treino**);
+- `scripts/bootstrap.js` — instalação nova: schema + catálogos + 1 admin aleatório (`--demo` só em dev).
+
+Outros scripts em `packages/backend/scripts/`: `seed_catalog.js` (medicamentos/CID-10/interações),
+`rotate_seed_passwords.js` (se um dia usou o seed de demonstração), `e2e_http_smoke.js` (fumaça HTTP);
+os one-shot já aplicados (Neon → local etc.) estão em `scripts/legacy/`.
+
+**Testes:** `cd packages/backend && npm test` — jest com Postgres/Redis de verdade, S3 e Orthanc
+falsos e Chromium para os PDFs (`TEST_DATABASE_URL`, ver `tests/setup/`). CI: `.github/workflows/ci.yml`.
 
 ---
 
@@ -250,14 +258,15 @@ por chave natural, preservando os UUIDs locais).
 │   ├── termo-responsabilidade.md
 │   └── pendencias.md            # DATASUS, e-mail, SMS/WhatsApp (bloqueios externos)
 ├── infra/
-│   ├── tls/                     # gen-cert.sh + certificado (gitignored)
+│   ├── scripts/                 # gen-cert.sh (certificado TLS)
+│   ├── tls/                     # certificado gerado (*.crt/*.key — gitignored)
 │   ├── backup/                  # backup.sh + restore-test.sh (pg_dump + volumes)
 │   ├── db/                      # dump portátil (gitignored)
 │   └── orthanc/                 # config do servidor DICOM
 ├── packages/
 │   ├── backend/                 # API Express (ver README do backend)
-│   │   ├── migrations/          # 001_schema.sql, 002_seed.sql
-│   │   ├── scripts/             # seeds, smokes, migrações de dados
+│   │   ├── migrations/          # 001_schema.sql, seed_catalogos.sql, seed_demo.sql
+│   │   ├── scripts/             # bootstrap, seeds, smokes (legacy/: one-shot já aplicados)
 │   │   └── src/
 │   │       ├── app.js           # bootstrap + montagem de rotas
 │   │       ├── config/          # database, env, permissions, storage, logger
