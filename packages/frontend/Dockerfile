@@ -16,8 +16,8 @@ COPY . .
 ARG VITE_API_URL=/api/v1
 ENV VITE_API_URL=${VITE_API_URL}
 
-# Bypass tsc -b (errors pré-existentes em react-hook-form/zod) — vite build é a fonte da verdade
-RUN npx vite build
+# tsc -b + vite build: erro de tipo derruba o build (antes havia bypass do tsc)
+RUN npm run build
 
 
 # ─── Runtime: nginx ─────────────────────────────────────────────────────────

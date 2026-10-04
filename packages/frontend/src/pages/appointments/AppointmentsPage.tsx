@@ -145,7 +145,7 @@ function AppointmentForm({ onSave, onClose }: {
   const [error, setError] = useState('');
   const [patientId, setPatientId] = useState('');
 
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<z.input<typeof schema>, unknown, FormData>({
     resolver: zodResolver(schema),
     defaultValues: { duration_minutes: 30, priority: 0, appointment_kind: 'imaging' },
   });

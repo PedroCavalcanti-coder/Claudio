@@ -313,7 +313,7 @@ export default function DicomViewerLite({ studyId, portalToken, procedureName, o
     setWc(volume.wc); setWw(volume.ww);
   };
 
-  const wheelHandler = useCallback((setter: (v: number) => void, max: number) =>
+  const wheelHandler = useCallback((setter: React.Dispatch<React.SetStateAction<number>>, max: number) =>
     (e: React.WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey) { setZoom(z => Math.max(0.5, Math.min(4, z - e.deltaY * 0.003))); return; }

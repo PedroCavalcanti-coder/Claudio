@@ -100,7 +100,7 @@ export function ReportModal({ onClose }: { onClose: () => void }) {
   const findingsRef   = useRef<MarkdownTextareaHandle>(null)
   const impressionRef = useRef<MarkdownTextareaHandle>(null)
   const recsRef       = useRef<MarkdownTextareaHandle>(null)
-  const fieldRefs: Record<string, React.RefObject<MarkdownTextareaHandle>> = {
+  const fieldRefs: Record<string, React.RefObject<MarkdownTextareaHandle | null>> = {
     indication: indicationRef, technique: techniqueRef,
     findings:   findingsRef,   impression: impressionRef,
     recs:       recsRef,

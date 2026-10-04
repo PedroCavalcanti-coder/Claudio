@@ -238,7 +238,7 @@ function DispensarTab() {
     },
   });
 
-  const toggle = (itemId: string, drug: string) => setPicked((p) => {
+  const toggle = (itemId: string, _drug: string) => setPicked((p) => {
     const n = { ...p };
     if (n[itemId]) delete n[itemId]; else n[itemId] = { qty: '1' };
     return n;

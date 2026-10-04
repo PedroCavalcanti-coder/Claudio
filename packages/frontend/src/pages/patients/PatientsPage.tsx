@@ -23,7 +23,7 @@ import { formatDate, formatAge, genderLabel, getErrorMessage } from '../../utils
 const createSchema = z.object({
   name:       z.string().min(3, 'Nome obrigatório'),
   birth_date: z.string().min(1, 'Data de nascimento obrigatória'),
-  gender:     z.enum(['M', 'F', 'O'], { required_error: 'Selecione o sexo' }),
+  gender:     z.enum(['M', 'F', 'O'], { error: 'Selecione o sexo' }),
   // CPF e CNS opcionais, mas exige-se ao menos um (rede pública: há quem não tenha CPF)
   cpf:        z.string().regex(/^\d{11}$|^\d{3}\.\d{3}\.\d{3}-\d{2}$/, 'CPF inválido').optional().or(z.literal('')),
   cns:        z.string().regex(/^\d{15}$/, 'CNS deve ter 15 dígitos').optional().or(z.literal('')),
@@ -41,7 +41,7 @@ type CreateData = z.infer<typeof createSchema>;
 const editSchema = z.object({
   name:       z.string().min(3, 'Nome obrigatório'),
   birth_date: z.string().min(1, 'Data de nascimento obrigatória'),
-  gender:     z.enum(['M', 'F', 'O'], { required_error: 'Selecione o sexo' }),
+  gender:     z.enum(['M', 'F', 'O'], { error: 'Selecione o sexo' }),
   cns:        z.string().regex(/^\d{15}$/, 'CNS deve ter 15 dígitos').optional().or(z.literal('')),
   phone:      z.string().optional(),
   email:      z.string().email('E-mail inválido').optional().or(z.literal('')),

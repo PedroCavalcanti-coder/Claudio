@@ -391,7 +391,7 @@ function PrescriptionForm({ patientId, onDone }: any) {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<any[]>([{ drug_name: '', dose: '', route: '', frequency: '', duration: '', quantity: '' }]);
   const [warnings, setWarnings] = useState<any[]>([]);
-  const setItem = (i: number, k: string, v: string) => setItems(items.map((it, j) => j === i ? { ...it, [k]: v } : it));
+  const setItem = (i: number, k: string, v: string | boolean) => setItems(items.map((it, j) => j === i ? { ...it, [k]: v } : it));
   const mut = useMutation({
     mutationFn: () => ehrApi.createPrescription({ patient_id: patientId, rx_type: rxType, notes: notes || undefined, items: items.filter((i) => i.drug_name.trim()) }),
     onSuccess: (r: any) => { const w = r.data.data.allergy_warnings ?? []; if (w.length) { setWarnings(w); toast.error(`Alerta: ${w.length} medicamento(s) com alergia registrada`); } else { toast.success('Prescrição criada'); onDone(); } },

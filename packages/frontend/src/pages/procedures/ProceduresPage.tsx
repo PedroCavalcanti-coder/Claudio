@@ -67,7 +67,7 @@ function ProcedureForm({
   loading: boolean;
   error: string;
 }) {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<z.input<typeof procedureSchema>, unknown, FormData>({
     resolver: zodResolver(procedureSchema),
     defaultValues: {
       duration_minutes: 30,

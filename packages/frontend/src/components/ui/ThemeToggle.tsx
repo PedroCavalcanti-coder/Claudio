@@ -14,7 +14,8 @@ const META: Record<Theme, { Icon: React.ElementType; label: string }> = {
   comfort: { Icon: Leaf, label: 'Conforto' },
 };
 
-export default function ThemeToggle() {
+// `compact` é aceito por compatibilidade com os layouts de login/portal (o botão já é compacto).
+export default function ThemeToggle(_props: { compact?: boolean } = {}) {
   const { theme, setTheme } = useThemeStore();
   const { Icon, label }     = META[theme];
 

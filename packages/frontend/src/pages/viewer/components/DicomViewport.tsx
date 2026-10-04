@@ -70,8 +70,8 @@ export default function DicomViewport({
     setLoadState('loading');
 
     const sopUIDs = series.instances.map(i => i.sop_instance_uid);
-    const imageIds = buildImageIds(studyUID, series.series_instance_uid, sopUIDs,
-      sessionStorage.getItem('access_token'));
+    // o token é injetado em runtime pelo loader (nunca na URL)
+    const imageIds = buildImageIds(studyUID, series.series_instance_uid, sopUIDs);
 
     if (!imageIds.length) { setLoadState('error'); return; }
 

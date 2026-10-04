@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Loader2, AlertCircle, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export function Spinner({ size = 16 }: { size?: number }) {
-  return <Loader2 size={size} className="animate-spin text-cyan-400" />;
+export function Spinner({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return <Loader2 size={size} className={`animate-spin text-cyan-400 ${className}`.trim()} />;
 }
 
 export function Skeleton({ className = '' }: { className?: string }) {
