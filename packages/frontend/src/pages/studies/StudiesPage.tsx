@@ -7,6 +7,8 @@ import {
 import { useOpenInViewer } from '../../utils/viewer';
 import { studiesApi, reportsApi } from '../../api/endpoints';
 import StudyDetailModal from './StudyDetailModal';
+import UnmatchedStudies from './UnmatchedStudies';
+import { useAuthStore } from '../../stores/authStore';
 import type { Study } from '../../types';
 import { EmptyState, SectionHeader, Pagination, Spinner } from '../../components/ui';
 import { formatDate, modalityLabel, studyStatusLabel } from '../../utils/format';
@@ -97,7 +99,13 @@ function StatusFlags({ study }: { study: StudyWithReport }) {
 
 // ── Página ─────────────────────────────────────────────────────────────────────
 export default function StudiesPage() {
-  const [tab, setTab]   = useState<'pending' | 'all'>('pending');
+  const [tab, setTab]   = useState<'pending' | 'all' | 'unmatched'>('pending');
+  const canReconcile = useAuthStore(s => s.can('studies:reconcile'));
+  const { data: unmatchedCount } = useQuery({
+    queryKey: ['studies-unmatched'], enabled: canReconcile,
+    queryFn:  () => studiesApi.unmatched(), select: r => ((r.data as any).data as unknown[]).length,
+    refetchInterval: 30_000,
+  });
   const [page, setPage] = useState(1);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -141,7 +149,7 @@ export default function StudiesPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-navy-900 rounded-lg w-fit border border-navy-700">
-        {(['pending','all'] as const).map(t => (
+        {(['pending','all', ...(canReconcile ? ['unmatched' as const] : [])] as const).map(t => (
           <button
             key={t}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
@@ -151,11 +159,13 @@ export default function StudiesPage() {
             }`}
             onClick={() => { setTab(t); setPage(1); }}
           >
-            {t === 'pending' ? 'Aguardando Laudo' : 'Todos os Estudos'}
+            {t === 'pending' ? 'Aguardando Laudo' : t === 'all' ? 'Todos os Estudos'
+              : `Sem vínculo${unmatchedCount ? ` (${unmatchedCount})` : ''}`}
           </button>
         ))}
       </div>
 
+      {tab === 'unmatched' ? <UnmatchedStudies /> : (
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -280,6 +290,7 @@ export default function StudiesPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Legenda — cores via tokens do design system (theme-aware) */}
       <div className="flex flex-wrap gap-4 text-xs text-slate-500">

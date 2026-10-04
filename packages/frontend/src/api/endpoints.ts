@@ -99,6 +99,11 @@ async function sha256Hex(file: File): Promise<string | null> {
 }
 
 export const studiesApi = {
+  // Conciliação: estudos do equipamento sem agendamento/paciente correspondente
+  unmatched:        () => api.get('/studies/unmatched'),
+  matchUnmatched:   (id: string, patient_id: string, appointment_id?: string) =>
+    api.post(`/studies/unmatched/${id}/match`, { patient_id, appointment_id }),
+  discardUnmatched: (id: string, reason?: string) => api.post(`/studies/unmatched/${id}/discard`, { reason }),
   list:    (params?: Record<string, unknown>) => api.get('/studies', { params }),
   pending: () => api.get('/studies/pending'),
   getById: (id: string) => api.get(`/studies/${id}`),
