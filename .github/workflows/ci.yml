@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, 'claude/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — lint, testes, audit
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run: { working-directory: packages/backend }
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ris_pacs_test
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: packages/backend/package-lock.json }
+      - run: npm ci            # baixa o Chromium do Puppeteer (PDFs dos testes)
+      - run: npm run lint
+      - run: npm test          # jest: banco/S3/Orthanc descartáveis + fluxo clínico completo + matriz de permissões
+      - name: npm audit (high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+  frontend:
+    name: Frontend — tsc, eslint, build, audit
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: packages/frontend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: packages/frontend/package-lock.json }
+      - run: npm ci
+      - run: npx tsc -p tsconfig.app.json --noEmit
+      - run: npx eslint .
+      - run: npm run build
+      # js-yaml/uuid transitivos do Cornerstone não têm correção publicada (ver docs): só crítico reprova.
+      - run: npm audit --omit=dev --audit-level=critical
+
+  infra:
+    name: Infra — compose e scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config
+        run: cp .env.example .env && docker compose config -q
+      - name: scripts shell
+        run: |
+          for f in scripts/setup.sh infra/scripts/gen-cert.sh infra/backup/backup.sh infra/backup/restore-test.sh; do bash -n "$f"; done
+      - name: setup.sh gera um .env que o compose aceita
+        run: |
+          rm .env
+          SERVER_IP=10.0.0.5 bash scripts/setup.sh
+          docker compose config -q
+          test "$(stat -c %a .env)" = "600"
+
+  secrets:
+    name: Segredos no repositório (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

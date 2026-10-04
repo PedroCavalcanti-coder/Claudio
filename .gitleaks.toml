@@ -1,0 +1,12 @@
+# Configuração do gitleaks (CI). Estende as regras padrão; só libera o que é comprovadamente fictício.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders e credenciais de demonstração conhecidas"
+paths = [
+  '''\.env\.example$''',
+  '''packages/backend/migrations/seed_demo\.sql$''',   # senhas de DEMONSTRAÇÃO (documentadas; nunca em produção)
+  '''packages/backend/tests/''',                       # fixtures de teste
+  '''docs/''',
+]

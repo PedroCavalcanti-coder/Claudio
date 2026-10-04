@@ -1,8 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
+
+// Versiona o cache do service worker por build: com nome fixo ('ris-pacs-v1') um shell antigo
+// podia ficar preso no navegador depois de uma atualização do sistema.
+function swBuildId() {
+  const id = Date.now().toString(36)
+  return {
+    name: 'sw-build-id',
+    closeBundle() {
+      const f = join('dist', 'sw.js')
+      if (existsSync(f)) writeFileSync(f, readFileSync(f, 'utf8').replace(/__BUILD_ID__/g, id))
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), swBuildId()],
   server: {
     port: 5173,
     proxy: {

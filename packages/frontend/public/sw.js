@@ -3,7 +3,8 @@
  * - Assets estáticos: stale-while-revalidate (atualiza em segundo plano).
  * - /api: NUNCA é cacheado (dados clínicos sempre frescos).
  */
-const CACHE = 'ris-pacs-v1';
+// __BUILD_ID__ é trocado pelo build (vite.config.ts); a ativação apaga os caches de builds anteriores.
+const CACHE = 'ris-pacs-__BUILD_ID__';
 
 self.addEventListener('install', () => self.skipWaiting());
 
