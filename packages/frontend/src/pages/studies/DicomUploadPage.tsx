@@ -260,6 +260,12 @@ export default function DicomUploadPage() {
                 {uploadResult.files_failed} arquivo{uploadResult.files_failed !== 1 ? 's' : ''} com falha
               </p>
             )}
+            {(uploadResult.warnings ?? []).map((w: { code: string; message: string }) => (
+              <div key={w.code} className="mt-3 p-3 rounded-lg text-xs text-left"
+                style={{ background: 'var(--color-warning-bg)', color: 'var(--color-warning)', border: '1px solid currentColor' }}>
+                ⚠ {w.message}
+              </div>
+            ))}
             <p className="text-slate-500 text-xs mt-2 font-mono break-all">{uploadResult.study_instance_uid}</p>
             <p className="text-slate-600 text-xs mt-1">
               O Orthanc processará as imagens automaticamente. O estudo aparecerá em Estudos em instantes.

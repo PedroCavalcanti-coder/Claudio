@@ -23,7 +23,7 @@ const userSchema = z.object({
   extra_roles:         z.array(z.enum(['admin','radiologist','technician','receptionist','doctor','nurse'])).optional(),
 });
 
-router.get('/',     validate({ query: z.object({ page: schemas.page, limit: schemas.limit, role: z.string().optional(), active: z.coerce.boolean().optional(), health_unit_id: z.string().uuid().optional() }) }), controller.list);
+router.get('/',     validate({ query: z.object({ page: schemas.page, limit: schemas.limit, role: z.string().optional(), active: z.enum(['true', 'false']).transform((v) => v === 'true').optional(), health_unit_id: z.string().uuid().optional() }) }), controller.list);
 router.get('/:id',  validate({ params: schemas.uuidParam }), controller.getById);
 router.post('/',    validate({ body: userSchema }),           controller.create);
 router.patch('/:id',validate({ params: schemas.uuidParam, body: userSchema.omit({ password: true }).partial() }), controller.update);

@@ -14,8 +14,6 @@ const logger          = require('./config/logger');
 const { healthCheck } = require('./config/database');
 const { apiLimiter }  = require('./middlewares/rateLimiter');
 const errorHandler    = require('./middlewares/errorHandler');
-const { authorize }   = require('./middlewares/authorize');
-const authenticate    = require('./middlewares/authenticate');
 
 const authRoutes         = require('./modules/auth/auth.routes');
 const patientsRoutes     = require('./modules/patients/patients.routes');
@@ -122,11 +120,6 @@ app.use(`${P}/messaging`,       messagingRoutes);
 app.use(`${P}/teleconsult`,     teleconsultRoutes);
 // exam-notes registra rotas tanto em /studies/:id/notes (lista/cria) quanto /notes/:id (patch/delete)
 app.use(`${P}`,                 examNotesRoutes);
-
-app.get(`${P}/studies/:studyUID/series`,
-  authenticate, authorize('radiologist'),
-  require('./modules/dicom/dicom.controller').getStudySeries
-);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Rota não encontrada: ${req.method} ${req.path}` });

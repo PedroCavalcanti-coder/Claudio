@@ -550,6 +550,8 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
   );
   const study = studyRows[0];
 
+  const seenModalities = new Set();   // modalidades DICOM realmente enviadas (aviso de divergência)
+
   // Cria pacs.series/pacs.instances a partir dos metadados do Orthanc — necessário para o OrthoVis fazer streaming
   try {
     let seriesIdx = 0;
@@ -567,6 +569,7 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
           ? `2.25.${reuseToken}.${seriesIdx}`
           : (sTags.SeriesInstanceUID ?? `auto.${orthancSeriesId}`);
         const seriesNum  = parseInt(sTags.SeriesNumber, 10) || null;
+        if (sTags.Modality) seenModalities.add(String(sTags.Modality).toUpperCase());
         const modality   = sTags.Modality || effectiveModality;
         const seriesDesc = sTags.SeriesDescription || null;
 
@@ -671,7 +674,19 @@ async function _ingestDicomUpload({ req, appt, appointment_id, fileSources, ctx 
     [study.id]
   );
 
+  // Modalidade DICOM enviada ≠ a do procedimento agendado (ex.: CR num exame de MG): não bloqueia
+  // (o técnico pode estar certo), mas AVISA — evita laudar o exame errado sem perceber.
+  const warnings = [];
+  if (appt.modality_type && seenModalities.size && !seenModalities.has(String(appt.modality_type).toUpperCase())) {
+    warnings.push({
+      code: 'MODALITY_MISMATCH',
+      message: `As imagens enviadas são ${[...seenModalities].join('/')}, mas o procedimento agendado é ${appt.modality_type}. Confira se o exame/paciente estão corretos.`,
+    });
+    logger.warn('Upload DICOM com modalidade divergente do procedimento', { appointment_id, enviado: [...seenModalities], agendado: appt.modality_type });
+  }
+
   return {
+    warnings,
     id:                 study.id,
     study_instance_uid: study.study_instance_uid,
     status:             study.status,

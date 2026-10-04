@@ -552,13 +552,13 @@ async function getStatus(req, res) {
   const { rows } = await db.query(
     `SELECT
        a.id, a.status, a.scheduled_at, a.checked_in_at, a.priority,
-       a.portal_access_granted,
+       a.portal_access_granted, a.appointment_kind,
        proc.name AS procedure_name, proc.modality_type,
        s.id AS study_id, s.status AS study_status, s.display_status,
        s.number_of_series, s.number_of_instances, s.upload_completed_at,
        r.id AS report_id, r.status AS report_status, r.signed_at
      FROM ris.appointments a
-     JOIN ris.procedures proc ON proc.id = a.procedure_id
+     LEFT JOIN ris.procedures proc ON proc.id = a.procedure_id   -- consulta/teleconsulta não têm procedimento
      LEFT JOIN pacs.studies s ON s.appointment_id = a.id
      LEFT JOIN ris.reports r  ON r.study_id = s.id AND r.status NOT IN ('cancelled')
      WHERE a.id = $1`,
@@ -568,12 +568,14 @@ async function getStatus(req, res) {
 
   const row = rows[0];
 
+  const clinical = row.appointment_kind !== 'imaging';
   const statusLabels = {
     scheduled:   { label: 'Agendado',            color: '#3b82f6', step: 0 },
     confirmed:   { label: 'Confirmado',           color: '#6366f1', step: 1 },
-    checked_in:  { label: 'Aguardando Exame',     color: '#8b5cf6', step: 2 },
-    in_progress: { label: 'Realizando Exame',     color: '#f59e0b', step: 3 },
-    done:        { label: row.report_status === 'signed' ? 'Laudo Disponível' : 'Exame Concluído', color: '#10b981', step: 4 },
+    checked_in:  { label: clinical ? 'Aguardando Atendimento' : 'Aguardando Exame', color: '#8b5cf6', step: 2 },
+    in_progress: { label: clinical ? 'Em Atendimento' : 'Realizando Exame',         color: '#f59e0b', step: 3 },
+    done:        { label: clinical ? 'Atendimento Concluído'
+                          : (['signed', 'amended'].includes(row.report_status) ? 'Laudo Disponível' : 'Exame Concluído'), color: '#10b981', step: 4 },
     cancelled:   { label: 'Cancelado',            color: '#ef4444', step: -1 },
     no_show:     { label: 'Não Compareceu',       color: '#6b7280', step: -1 },
   };
@@ -595,7 +597,8 @@ async function getStatus(req, res) {
     images_available:  !!row.upload_completed_at,
     report_id:         row.report_id,
     report_status:     row.report_status,
-    report_available:  row.report_status === 'signed',
+    report_available:  ['signed', 'amended'].includes(row.report_status),
+    appointment_kind:  row.appointment_kind,
     signed_at:         row.signed_at,
   });
 }

@@ -5,6 +5,7 @@
  * Os ticks são exportados separadamente para permitir teste direto.
  */
 const db        = require('../config/database');
+const env       = require('../config/env');
 const logger    = require('../config/logger');
 const { notify } = require('../services/notifications');
 const { createNotification } = require('../modules/notifications/notifications.routes');
@@ -20,13 +21,27 @@ async function reminderTick() {
         AND a.scheduled_at BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
         AND NOT EXISTS (
           SELECT 1 FROM ris.appointment_reminders r
-           WHERE r.appointment_id = a.id AND r.channel = 'email'
+           WHERE r.appointment_id = a.id AND r.channel = 'email' AND r.status = 'sent'
         )
       LIMIT 200`
   );
   let sent = 0;
+  let skipped = 0;
   for (const { id } of rows) {
     try {
+      // Sem provedor de e-mail (RESEND_API_KEY ausente) nada é enviado: registrar 'sent' seria mentira
+      // (e o lembrete nunca mais seria tentado depois de configurar o provedor).
+      if (!env.RESEND_API_KEY) {
+        // uma única linha 'skipped' por agendamento (o tick roda a cada 15 min); 'sent' continua sendo
+        // o que impede o reenvio — assim, configurado o provedor, o lembrete ainda sai.
+        await db.query(
+          `INSERT INTO ris.appointment_reminders (appointment_id, channel, sent_at, status)
+           SELECT $1, 'email', NULL, 'skipped'
+            WHERE NOT EXISTS (SELECT 1 FROM ris.appointment_reminders
+                               WHERE appointment_id = $1 AND channel = 'email' AND status = 'skipped')`, [id]);
+        skipped++;
+        continue;
+      }
       await notify('appointment.reminder', { appointmentId: id });
       await db.query(
         `INSERT INTO ris.appointment_reminders (appointment_id, channel, sent_at, status)
@@ -39,6 +54,7 @@ async function reminderTick() {
     }
   }
   if (sent) logger.info('[scheduler] lembretes enfileirados', { sent });
+  if (skipped) logger.info('[scheduler] lembretes ignorados (sem provedor de e-mail)', { skipped });
   return sent;
 }
 
