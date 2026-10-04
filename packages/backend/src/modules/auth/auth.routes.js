@@ -62,6 +62,11 @@ router.post('/logout',         authenticate, controller.logout);
 router.post('/logout-all',     authenticate, controller.logoutAll);
 router.get('/me',              authenticate, controller.me);
 router.get('/me/permissions',  authenticate, controller.myPermissions);
+// Troca da própria senha (obrigatória no 1º acesso com senha provisória do administrador)
+router.post('/change-password', authenticate, authLimiter,
+  validate({ body: z.object({ current_password: z.string().min(1), new_password: z.string().min(8) }) }),
+  controller.changePassword
+);
 router.post('/forgot-password', authLimiter,
   validate({ body: z.object({ email: schemas.email }) }),
   controller.forgotPassword

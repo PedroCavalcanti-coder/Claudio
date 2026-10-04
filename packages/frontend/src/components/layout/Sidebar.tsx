@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Upload, Monitor, Users2,
   FileImage, FileText, Activity, ClipboardList, Syringe,
-  LogOut, ChevronRight, Zap, Building2, FlaskConical, ShieldCheck, Send, ScrollText, Settings2,
+  LogOut, KeyRound, ChevronRight, Zap, Building2, FlaskConical, ShieldCheck, Send, ScrollText, Settings2,
   Tv, ExternalLink, BarChart3, Pill, Video,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -249,6 +249,17 @@ export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
             )}
           </div>
         </div>
+
+        {role !== 'patient' && (
+          <button
+            onClick={() => { navigate('/trocar_senha'); onClose?.(); }}
+            className="sidebar-link"
+            style={{ color: 'var(--sl-400)', justifyContent: 'center', marginTop: 2 }}
+          >
+            <KeyRound size={14} />
+            <span style={{ fontSize: 13 }}>Trocar senha</span>
+          </button>
+        )}
 
         <button
           onClick={handleLogout}

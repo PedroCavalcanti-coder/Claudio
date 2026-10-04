@@ -2,6 +2,8 @@ const { verifyAccessToken } = require('../services/token');
 const { AppError } = require('../utils/errors');
 const db = require('../config/database');
 
+const PASSWORD_CHANGE_ALLOWED = /\/auth\/(change-password|me|me\/permissions|logout|logout-all|refresh)$/;
+
 /**
  * Middleware de autenticação JWT RS256.
  * Extrai o token do header Authorization: Bearer <token>, valida a assinatura e
@@ -29,12 +31,16 @@ async function authenticate(req, res, next) {
   }
 
   try {
-    const { rows } = await db.query(`SELECT is_active FROM auth.users WHERE id = $1`, [payload.sub]);
+    const { rows } = await db.query(`SELECT is_active, must_change_password FROM auth.users WHERE id = $1`, [payload.sub]);
     if (!rows.length) {
       return next(new AppError('Sessão inválida — faça login novamente.', 401, 'SESSION_INVALID'));
     }
     if (rows[0].is_active === false) {
       return next(new AppError('Conta inativa. Contate o administrador.', 401, 'ACCOUNT_INACTIVE'));
+    }
+    // Senha provisória do admin: até trocar, só vale o necessário para trocar (ou sair).
+    if (rows[0].must_change_password && !PASSWORD_CHANGE_ALLOWED.test((req.originalUrl || req.url).split('?')[0])) {
+      return next(new AppError('Troque a senha provisória para continuar.', 403, 'PASSWORD_CHANGE_REQUIRED'));
     }
     req.user = payload; // { sub, email, role, name, health_unit_id, ... }
     next();

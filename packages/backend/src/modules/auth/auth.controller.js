@@ -9,6 +9,7 @@ const enc     = require('../../services/encryption');
 const { success } = require('../../utils/response');
 const { AppError } = require('../../utils/errors');
 const env     = require('../../config/env');
+const { isStrong, POLICY_MESSAGE } = require('../../services/passwords');
 const { getEffectivePermissions } = require('../../middlewares/authorize');
 const { listEffective } = require('../../config/permissions');
 
@@ -26,7 +27,7 @@ async function findAndValidate(whereClause, params, password, expectedRole) {
     `SELECT id, name, email, password_hash, role, is_active,
             mfa_enabled, mfa_secret, failed_attempts, locked_until,
             health_unit_id, is_network_resource, shared_specialties, extra_roles,
-            permission_overrides, username, cpf_hash
+            permission_overrides, username, cpf_hash, must_change_password
      FROM auth.users WHERE ${whereClause}`,
     params
   );
@@ -116,6 +117,8 @@ async function issueTokens(req, res, user, redirectTo) {
       role:           user.role,
       health_unit_id: user.health_unit_id,
       extra_roles:    user.extra_roles || [],
+      // true → a UI leva direto para a troca de senha (o backend barra o resto até trocar)
+      must_change_password: !!user.must_change_password,
       permissions:    getEffectivePermissions(user),
       // Permissões granulares (resource:action) — a UI esconde botões que o backend negaria
       granular_permissions: listEffective(user),
@@ -330,7 +333,7 @@ async function login(req, res) {
   const { rows } = await db.query(
     `SELECT id, name, email, password_hash, role, is_active, mfa_enabled, mfa_secret,
             failed_attempts, locked_until, health_unit_id, is_network_resource, shared_specialties, extra_roles,
-            permission_overrides
+            must_change_password, permission_overrides
      FROM auth.users WHERE email=$1`, [email.toLowerCase()]
   );
   const user = rows[0];
@@ -410,6 +413,45 @@ async function me(req, res) {
   });
 }
 
+// Troca da PRÓPRIA senha (funcionário). Exige a senha atual, aplica a política, revoga as demais
+// sessões e devolve uma sessão nova — a senha provisória do admin deixa de valer na hora.
+async function changePassword(req, res) {
+  const { current_password, new_password } = req.body;
+  const { rows } = await db.query(
+    `SELECT id, name, email, role, password_hash, health_unit_id, is_network_resource, extra_roles,
+            permission_overrides, is_active
+       FROM auth.users WHERE id = $1`, [req.user.sub]);
+  const user = rows[0];
+  if (!user || !user.is_active) throw new AppError('Sessão inválida', 401, 'SESSION_INVALID');
+
+  if (!(await bcrypt.compare(current_password, user.password_hash))) {
+    await audit.log({ action: audit.ACTIONS.LOGIN_FAILED, userId: user.id, userEmail: user.email,
+      details: { reason: 'change_password_wrong_current' } });
+    throw new AppError('Senha atual incorreta', 401, 'WRONG_CURRENT_PASSWORD');
+  }
+  if (!isStrong(new_password)) throw new AppError(POLICY_MESSAGE, 422, 'WEAK_PASSWORD');
+  if (await bcrypt.compare(new_password, user.password_hash))
+    throw new AppError('A nova senha deve ser diferente da atual', 422, 'SAME_PASSWORD');
+
+  const hash = await bcrypt.hash(new_password, env.BCRYPT_ROUNDS);
+  await db.query(
+    `UPDATE auth.users
+        SET password_hash = $1, must_change_password = FALSE, password_changed_at = NOW(),
+            failed_attempts = 0, locked_until = NULL, updated_at = NOW()
+      WHERE id = $2`, [hash, user.id]);
+  await tokenService.revokeAllUserTokens(user.id);
+
+  const [accessToken, refreshToken] = await Promise.all([
+    tokenService.generateAccessToken(user),
+    tokenService.generateRefreshToken(user.id, { ip: req.ip, userAgent: req.headers['user-agent'] }),
+  ]);
+  res.cookie('refresh_token', refreshToken, COOKIE_OPTS);
+  await audit.log({ ...audit.fromRequest(req), action: audit.ACTIONS.PASSWORD_CHANGED,
+    resourceType: 'user', resourceId: user.id, details: { self_service: true } });
+
+  return success(res, { access_token: accessToken }, 'Senha alterada com sucesso');
+}
+
 async function myPermissions(req, res) {
   return success(res, {
     role:        req.user.role,
@@ -470,4 +512,4 @@ async function resetPassword(req, res) {
 
 module.exports = { login, loginPaciente, reactivatePaciente, loginMedico, loginRecepcao, loginTecnico,
                    loginEnfermeiro, loginAdmin,
-                   refresh, logout, logoutAll, me, myPermissions, forgotPassword, resetPassword };
+                   refresh, logout, logoutAll, me, myPermissions, changePassword, forgotPassword, resetPassword };

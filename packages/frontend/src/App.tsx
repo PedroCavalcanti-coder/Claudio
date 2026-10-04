@@ -7,6 +7,7 @@ import AppLayout         from './components/layout/AppLayout';
 import RoleGuard         from './components/auth/RoleGuard';
 
 import LoginPaciente  from './pages/auth/LoginPaciente';
+import ChangePasswordPage from './pages/auth/ChangePasswordPage';
 import LoginMedico    from './pages/auth/LoginMedico';
 import LoginRecepcao  from './pages/auth/LoginRecepcao';
 import LoginTecnico   from './pages/auth/LoginTecnico';
@@ -65,7 +66,11 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
       if (d) useAuthStore.setState({ permissions: d.permissions ?? {}, granular: d.granular_permissions ?? [] });
     }).catch(() => { /* offline/401 tratado pelo interceptor */ });
   }, [isAuthenticated, role]);
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login_paciente" replace />;
+  const mustChange      = useAuthStore(s => !!s.user?.must_change_password);
+  if (!isAuthenticated) return <Navigate to="/login_paciente" replace />;
+  // Senha provisória do administrador: só a tela de troca é acessível até definir a própria.
+  if (mustChange && window.location.pathname !== '/trocar_senha') return <Navigate to="/trocar_senha" replace />;
+  return <>{children}</>;
 }
 
 function PublicOnlyRoute({ children, redirectTo = '/' }: { children: React.ReactNode; redirectTo?: string }) {
@@ -85,6 +90,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
 
+          <Route path="/trocar_senha" element={<PrivateRoute><ChangePasswordPage /></PrivateRoute>} />
           <Route path="/login_paciente" element={<PublicOnlyRoute><LoginPaciente /></PublicOnlyRoute>} />
           <Route path="/login_medico"   element={<PublicOnlyRoute><LoginMedico /></PublicOnlyRoute>} />
           <Route path="/login_recepcao" element={<PublicOnlyRoute><LoginRecepcao /></PublicOnlyRoute>} />

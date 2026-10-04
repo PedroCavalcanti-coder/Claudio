@@ -46,7 +46,13 @@ export default function AdminStaffPage() {
 
   const createMut = useMutation({
     mutationFn: (d: any) => usersApi.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-staff'] }); setShowForm(false); toast.success('Funcionário criado'); },
+    onSuccess: (r: any) => {
+      qc.invalidateQueries({ queryKey: ['admin-staff'] });
+      setShowForm(false);
+      const u = r.data?.data;
+      // Senha provisória gerada no backend: aparece UMA vez
+      setResetResult({ name: u.name, email: u.email, password: u.temp_password, created: true });
+    },
     onError:   (e: any) => toast.error(e.response?.data?.message ?? 'Falha ao criar funcionário'),
   });
   const updateMut = useMutation({
@@ -59,16 +65,11 @@ export default function AdminStaffPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-staff'] }); toast.success('Funcionário desativado'); },
     onError:   (e: any) => toast.error(e.response?.data?.message ?? 'Falha'),
   });
-  // Sem envio de email/SMS na rede: senha temporária é gerada localmente e exibida uma única vez
-  const [resetResult, setResetResult] = useState<null | { name: string; email: string; password: string }>(null);
-  const genTempPassword = () =>
-    'P' + Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(36)).join('').slice(0, 10)
-      + (1000 + Math.floor(Math.random() * 9000));
+  // Sem envio de e-mail/SMS: a senha provisória é gerada no BACKEND e exibida uma única vez.
+  const [resetResult, setResetResult] = useState<null | { name: string; email: string; password: string; created?: boolean }>(null);
   const resetMut = useMutation({
-    mutationFn: (u: UserRow) => {
-      const password = genTempPassword();
-      return usersApi.resetPassword(u.id, password).then(() => ({ name: u.name, email: u.email, password }));
-    },
+    mutationFn: (u: UserRow) =>
+      usersApi.resetPassword(u.id).then((r) => ({ name: u.name, email: u.email, password: (r.data as any).data.temp_password as string })),
     onSuccess: (r: any) => setResetResult(r),
     onError:   (e: any) => toast.error(e.response?.data?.message ?? 'Falha ao resetar senha'),
   });
@@ -182,8 +183,8 @@ export default function AdminStaffPage() {
       {resetResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setResetResult(null)}>
           <div className="card p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-100 mb-2">Senha redefinida</h3>
-            <p className="text-sm text-slate-300 mb-3">Nova senha temporária de <b>{resetResult.name}</b> ({resetResult.email}):</p>
+            <h3 className="font-semibold text-slate-100 mb-2">{resetResult.created ? 'Funcionário criado' : 'Senha redefinida'}</h3>
+            <p className="text-sm text-slate-300 mb-3">{resetResult.created ? 'Senha provisória de' : 'Nova senha temporária de'} <b>{resetResult.name}</b> ({resetResult.email}):</p>
             <div className="flex items-center gap-2 mb-3">
               <code className="flex-1 px-3 py-2 rounded bg-navy-900 border border-navy-700 text-cyan-300 font-mono text-sm select-all">{resetResult.password}</code>
               <button className="btn-ghost px-2 py-2" title="Copiar"
@@ -191,7 +192,7 @@ export default function AdminStaffPage() {
                 <Copy size={14}/>
               </button>
             </div>
-            <p className="text-[11px] text-slate-600 mb-3">Mostrada só agora. Entregue ao funcionário; ele troca no primeiro acesso.</p>
+            <p className="text-[11px] text-slate-600 mb-3">Mostrada só agora. Entregue ao funcionário: no primeiro acesso o sistema exige que ele defina a própria senha.</p>
             <div className="flex justify-end"><button className="btn-primary" onClick={() => setResetResult(null)}>Concluído</button></div>
           </div>
         </div>
@@ -211,7 +212,6 @@ function StaffForm({ initial, units, onClose, onSubmit, submitting }: {
   const [crmUf, setCrmUf] = useState(initial?.crm_uf ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [unitId, setUnitId] = useState(initial?.health_unit_id ?? '');
-  const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [isNetworkResource, setIsNetworkResource] = useState(!!initial?.is_network_resource);
   const [sharedSpecialtiesText, setSharedSpecialtiesText] = useState(
@@ -220,8 +220,8 @@ function StaffForm({ initial, units, onClose, onSubmit, submitting }: {
   const [extraRoles, setExtraRoles] = useState<string[]>(initial?.extra_roles || []);
   const requiresCrm = role === 'radiologist' || role === 'doctor';
 
-  const ALL_ROLES = ['radiologist', 'technician', 'receptionist', 'doctor'];
-  const ROLE_PT: Record<string,string> = { radiologist:'Radiologista', technician:'Técnico', receptionist:'Recepção', doctor:'Médico' };
+  const ALL_ROLES = ['radiologist', 'technician', 'receptionist', 'doctor', 'nurse'];
+  const ROLE_PT: Record<string,string> = { radiologist:'Radiologista', technician:'Técnico', receptionist:'Recepção', doctor:'Médico', nurse:'Enfermagem' };
   const toggleExtra = (r: string) =>
     setExtraRoles(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
 
@@ -235,7 +235,6 @@ function StaffForm({ initial, units, onClose, onSubmit, submitting }: {
         .split(',').map(s => s.trim()).filter(Boolean),
       extra_roles: extraRoles.filter(r => r !== role),
     };
-    if (!initial) data.password = password;
     onSubmit(data);
   };
 
@@ -258,6 +257,7 @@ function StaffForm({ initial, units, onClose, onSubmit, submitting }: {
             <option value="doctor">Médico Solicitante</option>
             <option value="technician">Técnico</option>
             <option value="receptionist">Recepção</option>
+            <option value="nurse">Enfermagem</option>
           </select>
         </Field>
         {role !== 'admin' && (
@@ -280,12 +280,6 @@ function StaffForm({ initial, units, onClose, onSubmit, submitting }: {
               <input className="input" value={specialty} onChange={e => setSpecialty(e.target.value)} placeholder="Ex: Radiologia, Ortopedia..."/>
             </Field>
           </>
-        )}
-        {!initial && (
-          <Field label="Senha inicial" required>
-            <input className="input font-mono" type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Mín. 8 chars, 1 maiúscula, 1 número"/>
-          </Field>
         )}
       </div>
 
@@ -349,7 +343,7 @@ function StaffForm({ initial, units, onClose, onSubmit, submitting }: {
         <button className="btn-ghost" onClick={onClose} disabled={submitting}>Cancelar</button>
         <button
           className="btn-primary"
-          disabled={submitting || !name.trim() || !email.trim() || (!initial && !password) || (!initial && !agreed) || (role !== 'admin' && !unitId) || (requiresCrm && !crm)}
+          disabled={submitting || !name.trim() || !email.trim() || (!initial && !agreed) || (role !== 'admin' && !unitId) || (requiresCrm && !crm)}
           onClick={submit}
         >
           {submitting ? <Spinner size={14}/> : (initial ? 'Salvar' : 'Criar funcionário')}

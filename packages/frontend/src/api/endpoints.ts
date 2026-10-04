@@ -7,6 +7,8 @@ export const authApi = {
   logout:  () => api.post('/auth/logout'),
   me:      () => api.get('/auth/me'),
   refresh: () => api.post('/auth/refresh'),
+  changePassword: (current_password: string, new_password: string) =>
+    api.post('/auth/change-password', { current_password, new_password }),
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
   resetPassword:  (token: string, password: string) =>
     api.post('/auth/reset-password', { token, password }),
@@ -229,11 +231,11 @@ export const reportsApi = {
 export const usersApi = {
   list:           (params?: Record<string, unknown>) => api.get('/users', { params }),
   getById:        (id: string) => api.get(`/users/${id}`),
-  create:         (data: Partial<User> & { password: string }) => api.post('/users', data),
+  // Sem `password`: o backend gera a senha provisória e a devolve UMA vez (`temp_password`).
+  create:         (data: Partial<User> & { password?: string }) => api.post('/users', data),
   update:         (id: string, data: Partial<User>) => api.patch(`/users/${id}`, data),
   deactivate:     (id: string) => api.patch(`/users/${id}/deactivate`),
-  resetPassword:  (id: string, password: string) =>
-    api.patch(`/users/${id}/reset-password`, { password }),
+  resetPassword:  (id: string) => api.patch(`/users/${id}/reset-password`, {}),
 };
 
 export const radiologistApi = {

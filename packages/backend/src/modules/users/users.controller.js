@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const { generateTempPassword } = require('../../services/passwords');
 const db = require('../../config/database');
 const audit = require('../../services/audit');
 const { success, created, paginated, noContent } = require('../../utils/response');
@@ -65,12 +66,15 @@ async function create(req, res) {
   );
   if (existing.length) throw new AppError('E-mail já cadastrado', 409, 'DUPLICATE_EMAIL');
 
-  const hash = await bcrypt.hash(body.password, env.BCRYPT_ROUNDS);
+  // Senha provisória gerada AQUI (o admin não escolhe nem vê o hash); troca obrigatória no 1º acesso.
+  const tempPassword = body.password || generateTempPassword();
+  const hash = await bcrypt.hash(tempPassword, env.BCRYPT_ROUNDS);
 
   const { rows } = await db.query(
     `INSERT INTO auth.users (name, email, password_hash, role, crm, crm_uf, specialty,
-                             health_unit_id, is_network_resource, shared_specialties, extra_roles)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                             health_unit_id, is_network_resource, shared_specialties, extra_roles,
+                             must_change_password)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE)
      RETURNING id, name, email, role, health_unit_id, is_network_resource, created_at`,
     [
       body.name, body.email.toLowerCase(), hash, body.role,
@@ -91,7 +95,7 @@ async function create(req, res) {
     details: { role: body.role },
   });
 
-  return created(res, rows[0], 'Usuário criado com sucesso');
+  return created(res, { ...rows[0], temp_password: tempPassword }, 'Usuário criado com sucesso');
 }
 
 async function update(req, res) {
@@ -163,12 +167,18 @@ async function deactivate(req, res) {
 
 async function resetPassword(req, res) {
   const { id } = req.params;
-  const hash = await bcrypt.hash(req.body.password, env.BCRYPT_ROUNDS);
+  const tempPassword = req.body?.password || generateTempPassword();
+  const hash = await bcrypt.hash(tempPassword, env.BCRYPT_ROUNDS);
   const { rowCount } = await db.query(
-    `UPDATE auth.users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+    `UPDATE auth.users
+        SET password_hash = $1, must_change_password = TRUE, failed_attempts = 0, locked_until = NULL,
+            updated_at = NOW()
+      WHERE id = $2`,
     [hash, id]
   );
   if (!rowCount) throw new NotFoundError('Usuário');
+  // Sessões abertas com a senha antiga deixam de renovar o token.
+  await require('../../services/token').revokeAllUserTokens(id);
 
   await audit.log({
     ...audit.fromRequest(req),
@@ -178,7 +188,7 @@ async function resetPassword(req, res) {
     details: { reset_by_admin: true },
   });
 
-  return success(res, null, 'Senha redefinida com sucesso');
+  return success(res, { temp_password: tempPassword }, 'Senha redefinida — entregue a senha provisória ao funcionário');
 }
 
 // RBAC granular (#31): define overrides de permissão (granted/revoked) do usuário.
