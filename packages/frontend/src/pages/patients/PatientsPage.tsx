@@ -449,7 +449,7 @@ export default function PatientsPage() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
           <input
             className="input pl-9"
-            placeholder="Nome (parcial), CPF ou CNS..."
+            placeholder="Nome (3+ letras por palavra), CPF ou CNS..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { setQ(search); setQBirth(birth); setPage(1); } }}

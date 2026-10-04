@@ -129,6 +129,7 @@ async function startEpisode(req, res) {
          encd.cns_encrypted || null, encd.cns_hash || null, req.user.sub, unitId]
       );
       pid = rows[0].id;
+      await require('../../services/patientNameIndex').indexPatientName(db, pid, name || 'PACIENTE NÃO IDENTIFICADO');
       pendingRegistration = true;
     }
   }

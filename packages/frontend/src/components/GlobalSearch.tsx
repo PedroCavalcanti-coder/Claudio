@@ -48,7 +48,7 @@ export default function GlobalSearch() {
           <Search size={16} className="text-slate-500" />
           <input
             ref={inputRef} className="flex-1 bg-transparent py-3 text-sm outline-none text-slate-100"
-            placeholder="Buscar paciente por nome ou CPF…" value={term}
+            placeholder="Buscar paciente por nome, CPF ou CNS…" value={term}
             onChange={(e) => { setTerm(e.target.value); setActive(0); }}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, results.length - 1)); }

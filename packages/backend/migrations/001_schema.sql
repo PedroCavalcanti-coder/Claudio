@@ -2040,6 +2040,18 @@ CREATE TABLE IF NOT EXISTS ris.system_canary (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 21.8 Busca de paciente por nome parcial (blind index por palavra) ---------------
+-- O nome é cifrado; antes só casava o nome COMPLETO exato (ou parcial + data de nascimento). Aqui
+-- cada palavra do nome (sem acento, minúscula) vira HMAC-SHA256 — também dos prefixos de 3+
+-- letras — guardados SEM o nome em claro. Sem a ENCRYPTION_KEY o índice não permite ataque de
+-- dicionário. "silva" / "mar sil" encontram "Maria da Silva".
+CREATE TABLE IF NOT EXISTS ris.patient_name_tokens (
+  patient_id UUID     NOT NULL REFERENCES ris.patients(id) ON DELETE CASCADE,
+  token_hash CHAR(64) NOT NULL,
+  PRIMARY KEY (patient_id, token_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_patient_name_tokens ON ris.patient_name_tokens(token_hash);
+
 -- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================

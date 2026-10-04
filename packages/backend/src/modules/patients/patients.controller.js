@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const enc = require('../../services/encryption');
+const nameIndex = require('../../services/patientNameIndex');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const audit = require('../../services/audit');
@@ -45,7 +46,17 @@ async function list(req, res) {
     const digits = q.replace(/\D/g, '').trim();
     const digitsHash = digits ? enc.searchHash(digits) : enc.searchHash(q);
     params.push(digitsHash, enc.searchHash(q));
-    conditions.push(`(p.cpf_hash = $${params.length - 1} OR p.cns_hash = $${params.length - 1} OR p.name_search_hash = $${params.length})`);
+    let cond = `p.cpf_hash = $${params.length - 1} OR p.cns_hash = $${params.length - 1} OR p.name_search_hash = $${params.length}`;
+    // Nome parcial SEM data de nascimento: índice cego por palavra/prefixo (todas as palavras
+    // digitadas precisam casar). "silva" ou "mar sil" encontram "Maria da Silva".
+    const tokens = hasNamePart ? nameIndex.queryTokens(q) : [];
+    if (tokens.length) {
+      params.push(tokens);
+      cond += ` OR p.id IN (SELECT patient_id FROM ris.patient_name_tokens
+                             WHERE token_hash = ANY($${params.length}::char(64)[])
+                             GROUP BY patient_id HAVING COUNT(DISTINCT token_hash) = ${tokens.length})`;
+    }
+    conditions.push(`(${cond})`);
   }
 
   // Cláusula WHERE só se houver condições — quando admin inclui inativos
@@ -176,6 +187,7 @@ async function create(req, res) {
         );
         patient = rows[0];
         isNew = true;
+        await nameIndex.indexPatientName(client, patient.id, body.name);
       } catch (err) {
         // Corrida: outro request inseriu o mesmo CPF/CNS entre o SELECT e o INSERT
         if (err.code === '23505') {
@@ -315,6 +327,7 @@ async function update(req, res) {
      WHERE id = $${params.length}`,
     params
   );
+  if (body.name) await nameIndex.indexPatientName(db, id, body.name);
 
   await audit.log({
     ...audit.fromRequest(req),
@@ -502,6 +515,7 @@ async function anonymizePatient(id) {
           anonymized_at = NOW(), updated_at = NOW()
         WHERE id = $1`,
       [id, enc.encrypt(label), enc.searchHash(`anon-name:${id}`), enc.searchHash(`anon-cpf:${id}`)]);
+    await client.query(`DELETE FROM ris.patient_name_tokens WHERE patient_id = $1`, [id]);   // some da busca por nome
     const pn = await client.query(`DELETE FROM ris.patient_notifications WHERE patient_id = $1`, [id]);
     const pa = await client.query(`DELETE FROM ris.patient_portal_accounts WHERE patient_id = $1`, [id]);
     await client.query(`DELETE FROM ris.notifications WHERE resource_type = 'patient' AND resource_id = $1`, [id]);

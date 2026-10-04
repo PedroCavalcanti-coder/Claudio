@@ -64,7 +64,7 @@ export default function TeleconsultaPage() {
         <div className="space-y-2 max-w-lg">
           <div className="relative">
             <UserSearch size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input className="input pl-8 w-full" placeholder="Buscar paciente (nome)…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input className="input pl-8 w-full" placeholder="Nome (3+ letras por palavra), CPF ou CNS…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           {results.isLoading ? <div className="p-3"><Spinner /></div> : (
             <div className="space-y-1">

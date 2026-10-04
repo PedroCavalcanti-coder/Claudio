@@ -152,6 +152,10 @@ function start() {
 
   require('./jobs/scheduler').startSchedulers();
 
+  // Índice de busca por nome: indexa em segundo plano quem ainda não tem tokens (upgrade).
+  require('./services/patientNameIndex').backfillNameTokens(require('./config/database'))
+    .catch((e) => logger.error('Índice de nomes falhou', { error: e.message }));
+
   // Cria os buckets do RustFS (instalação nova sobe vazia). Em segundo plano, com
   // retry/backoff: se o storage demorar, a API sobe mesmo assim.
   require('./config/storage').ensureBuckets().catch(() => {});

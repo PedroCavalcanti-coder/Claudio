@@ -49,6 +49,9 @@ async function runBootstrap(pool, opts = {}) {
     await pool.query(read('seed_demo.sql'));
   }
 
+  // Índice de busca por nome (no-op em banco vazio; indexa os existentes em upgrade).
+  await require('../../src/services/patientNameIndex').backfillNameTokens(pool);
+
   const { rows: admins } = await pool.query(
     `SELECT id, email FROM auth.users WHERE role = 'admin' AND is_active = TRUE ORDER BY created_at LIMIT 1`);
   if (admins.length && !resetAdmin) {

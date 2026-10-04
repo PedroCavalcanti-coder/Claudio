@@ -119,3 +119,53 @@ describe('GET /api/v1/patients (busca)', () => {
     expect(res.body.data.length).toBeGreaterThan(0);
   });
 });
+
+describe('P2-3: busca por nome parcial sem data de nascimento', () => {
+  const { as, uniqueCpf } = require('./helpers/api');
+  let recep, ids = {};
+  const mk = async (name) => (await recep.post('/patients', { name, birth_date: '1980-01-01', gender: 'F', cpf: uniqueCpf() })).body.data.id;
+  const busca = async (q, extra = '') => (await recep.get(`/patients?q=${encodeURIComponent(q)}&limit=50${extra}`)).body.data.map((p) => p.id);
+
+  beforeAll(async () => {
+    recep = await as('recep');
+    ids.maria = await mk('Maria Aparecida da Silva Zxqwk');
+    ids.joao  = await mk('João Pedro Silva Zxqwk');
+    ids.ana   = await mk('Ana Beatriz Oliveira Zxqwk');
+  });
+
+  it('uma palavra: "silva" encontra os dois Silva (sem acento/caixa)', async () => {
+    const r = await busca('SILVA zxqwk');
+    expect(r).toEqual(expect.arrayContaining([ids.maria, ids.joao]));
+    expect(r).not.toContain(ids.ana);
+  });
+  it('prefixos de várias palavras: "mar sil" e "joao"', async () => {
+    expect(await busca('mar sil zxq')).toEqual([ids.maria]);
+    expect(await busca('joao zxqwk')).toEqual([ids.joao]);
+    expect(await busca('João')).toContain(ids.joao);           // acento na busca
+  });
+  it('palavra que não existe, ou curta demais, não retorna o paciente errado', async () => {
+    expect(await busca('zxqwk inexistente')).toEqual([]);
+    expect(await busca('zxqwk ol')).toEqual(expect.arrayContaining([ids.maria, ids.joao, ids.ana])); // "ol" (<3) é ignorado
+  });
+  it('nome editado é reindexado', async () => {
+    expect((await recep.patch(`/patients/${ids.ana}`, { name: 'Ana Beatriz Souza Zxqwk' })).status).toBe(200);
+    expect(await busca('oliveira zxqwk')).toEqual([]);
+    expect(await busca('souza zxqwk')).toEqual([ids.ana]);
+  });
+  it('nenhum nome em claro no banco do índice', async () => {
+    const db = require('../src/config/database');
+    const { rows } = await db.query(`SELECT token_hash FROM ris.patient_name_tokens WHERE patient_id = $1`, [ids.maria]);
+    expect(rows.length).toBeGreaterThan(5);
+    for (const r of rows) expect(r.token_hash).toMatch(/^[0-9a-f]{64}$/);
+    const txt = JSON.stringify(rows).toLowerCase();
+    expect(txt).not.toContain('silva');
+  });
+  it('backfill indexa quem não tem tokens', async () => {
+    const db = require('../src/config/database');
+    const { backfillNameTokens } = require('../src/services/patientNameIndex');
+    await db.query(`DELETE FROM ris.patient_name_tokens WHERE patient_id = $1`, [ids.joao]);
+    expect(await busca('joao zxqwk')).toEqual([]);
+    expect(await backfillNameTokens(db)).toBeGreaterThanOrEqual(1);
+    expect(await busca('joao zxqwk')).toEqual([ids.joao]);
+  });
+});
