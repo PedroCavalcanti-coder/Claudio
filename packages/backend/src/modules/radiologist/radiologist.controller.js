@@ -71,7 +71,7 @@ async function worklist(req, res) {
 
   const data = dataRes.rows.map(row => ({
     ...row,
-    patient_name:    enc.decrypt(row.name_encrypted),
+    patient_name:    enc.safeDecrypt(row.name_encrypted),
     name_encrypted:  undefined,
     images_ready:    !!row.upload_completed_at,
     can_start_report: !!row.study_id && !!row.upload_completed_at && !row.report_id,

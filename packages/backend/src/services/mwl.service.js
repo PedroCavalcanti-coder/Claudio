@@ -77,7 +77,7 @@ async function writeWorklist(appointmentId) {
   if (!rows.length) { logger.warn('MWL: agendamento não encontrado', { appointmentId }); return null; }
   const r = rows[0];
 
-  const patientName = dicomPersonName(enc.decrypt(r.name_encrypted) ?? 'UNKNOWN');
+  const patientName = dicomPersonName(enc.safeDecrypt(r.name_encrypted) ?? 'UNKNOWN');
   const accession   = accessionFor(r.id);
   const modality    = r.modality_type ?? 'OT';
   const aeTitle     = r.dicom_ae_title ?? 'UNKNOWN_AE';

@@ -102,7 +102,7 @@ router.get('/', requirePermission('second_opinion:manage'), async (req, res) => 
   const enc = require('../../services/encryption');
   return success(res, rows.map(r => ({
     ...r,
-    patient_name: enc.decrypt(r.name_encrypted),
+    patient_name: enc.safeDecrypt(r.name_encrypted),
     name_encrypted: undefined,
     is_overdue: r.hours_remaining < 0,
     is_urgent:  r.hours_remaining < 4,
@@ -146,7 +146,7 @@ router.get('/:id', requirePermission('second_opinion:manage'), async (req, res) 
     resourceType: 'second_opinion', resourceId: req.params.id,
   });
 
-  return success(res, { ...row, patient_name: enc.decrypt(row.name_encrypted), name_encrypted: undefined });
+  return success(res, { ...row, patient_name: enc.safeDecrypt(row.name_encrypted), name_encrypted: undefined });
 });
 
 router.post('/:id/review', requirePermission('second_opinion:manage'), async (req, res) => {

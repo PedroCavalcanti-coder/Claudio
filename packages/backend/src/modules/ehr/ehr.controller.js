@@ -51,10 +51,10 @@ function decryptNote(row) {
     encounter_id: row.encounter_id,
     patient_id: row.patient_id,
     author_id: row.author_id,
-    subjective: enc.decrypt(row.subjective_enc),
-    objective:  enc.decrypt(row.objective_enc),
-    assessment: enc.decrypt(row.assessment_enc),
-    plan:       enc.decrypt(row.plan_enc),
+    subjective: enc.safeDecrypt(row.subjective_enc),
+    objective:  enc.safeDecrypt(row.objective_enc),
+    assessment: enc.safeDecrypt(row.assessment_enc),
+    plan:       enc.safeDecrypt(row.plan_enc),
     cid10_codes: row.cid10_codes || [],
     status: row.status,
     signed_at: row.signed_at,
@@ -167,7 +167,7 @@ async function getEncounter(req, res) {
     appointment_id: e.appointment_id,
     encounter_type: e.encounter_type,
     status: e.status,
-    chief_complaint: enc.decrypt(e.chief_complaint_enc),
+    chief_complaint: enc.safeDecrypt(e.chief_complaint_enc),
     started_at: e.started_at,
     closed_at: e.closed_at,
     notes: notes.rows.map(decryptNote),
@@ -575,7 +575,7 @@ async function exportEncounterFhir(req, res) {
     e.health_unit_id ? db.query(`SELECT name FROM ris.health_units WHERE id=$1`, [e.health_unit_id]) : Promise.resolve({ rows: [] }),
   ]);
   const patient = {
-    id: pat.rows[0].id, name: enc.decrypt(pat.rows[0].name_encrypted),
+    id: pat.rows[0].id, name: enc.safeDecrypt(pat.rows[0].name_encrypted),
     birth_date: pat.rows[0].birth_date, gender: pat.rows[0].gender,
   };
   const bundle = buildRacBundle({

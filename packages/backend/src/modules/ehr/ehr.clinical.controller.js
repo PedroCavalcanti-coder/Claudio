@@ -41,7 +41,7 @@ async function listAllergies(req, res) {
   );
   return success(res, rows.map((r) => ({
     id: r.id, allergen: r.allergen, allergen_type: r.allergen_type, severity: r.severity,
-    status: r.status, reaction: enc.decrypt(r.reaction_enc), noted_at: r.noted_at,
+    status: r.status, reaction: enc.safeDecrypt(r.reaction_enc), noted_at: r.noted_at,
     noted_by_name: r.noted_by_name, created_at: r.created_at, updated_at: r.updated_at,
   })));
 }
@@ -100,7 +100,7 @@ async function listMedications(req, res) {
       ORDER BY (m.status='active') DESC, m.created_at DESC`,
     [patientId]
   );
-  return success(res, rows.map((r) => ({ ...r, notes: enc.decrypt(r.notes_enc), notes_enc: undefined })));
+  return success(res, rows.map((r) => ({ ...r, notes: enc.safeDecrypt(r.notes_enc), notes_enc: undefined })));
 }
 
 async function createMedication(req, res) {
@@ -157,7 +157,7 @@ async function getHistory(req, res) {
   );
   await logClinical(req, A.EHR_CLINICAL_VIEWED, { patientId, resourceType: 'ehr_history' });
   return success(res, rows.map((r) => ({
-    history_type: r.history_type, content: enc.decrypt(r.content_enc),
+    history_type: r.history_type, content: enc.safeDecrypt(r.content_enc),
     updated_at: r.updated_at, updated_by_name: r.updated_by_name,
   })));
 }
@@ -504,7 +504,7 @@ async function listCertificates(req, res) {
   );
   return success(res, rows.map((r) => ({
     id: r.id, cert_type: r.cert_type, status: r.status, days_off: r.days_off, cid10_code: r.cid10_code,
-    content: enc.decrypt(r.content_enc), signed_at: r.signed_at, pdf_available: !!r.pdf_storage_key,
+    content: enc.safeDecrypt(r.content_enc), signed_at: r.signed_at, pdf_available: !!r.pdf_storage_key,
     created_at: r.created_at, issuer_name: r.issuer_name,
   })));
 }
@@ -709,9 +709,9 @@ async function listNursingEvolutions(req, res) {
   return success(res, rows.map((r) => ({
     id: r.id, diagnoses: r.diagnoses || [], created_at: r.created_at,
     encounter_id: r.encounter_id, author_name: r.author_name,
-    assessment: enc.decrypt(r.assessment_enc),
-    interventions: enc.decrypt(r.interventions_enc),
-    evaluation: enc.decrypt(r.evaluation_enc),
+    assessment: enc.safeDecrypt(r.assessment_enc),
+    interventions: enc.safeDecrypt(r.interventions_enc),
+    evaluation: enc.safeDecrypt(r.evaluation_enc),
   })));
 }
 
@@ -808,7 +808,7 @@ async function listAdverseEvents(req, res) {
       ORDER BY a.created_at DESC`, [patientId]);
   return success(res, rows.map((r) => ({
     id: r.id, event_type: r.event_type, suspected_drug: r.suspected_drug,
-    description: enc.decrypt(r.description_enc), severity: r.severity, outcome: r.outcome,
+    description: enc.safeDecrypt(r.description_enc), severity: r.severity, outcome: r.outcome,
     created_at: r.created_at, encounter_id: r.encounter_id, reported_by_name: r.reported_by_name,
   })));
 }

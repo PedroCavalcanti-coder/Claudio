@@ -73,7 +73,7 @@ async function getByToken(req, res) {
       procedure_name:   report.procedure_name,
     },
     patient: {
-      name:                 enc.decrypt(report.name_encrypted),
+      name:                 enc.safeDecrypt(report.name_encrypted),
       birth_date:           report.birth_date,
       gender:               report.gender,
       medical_record_number:report.medical_record_number,

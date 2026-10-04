@@ -75,7 +75,7 @@ async function list(req, res) {
 
   const data = dataRes.rows.map(r => ({
     ...r,
-    patient_name: enc.decrypt(r.name_encrypted),
+    patient_name: enc.safeDecrypt(r.name_encrypted),
     name_encrypted: undefined,
   }));
 
@@ -212,7 +212,7 @@ async function getById(req, res) {
   const row = rows[0];
   return success(res, {
     ...row,
-    patient_name: enc.decrypt(row.name_encrypted),
+    patient_name: enc.safeDecrypt(row.name_encrypted),
     name_encrypted: undefined,
   });
 }
@@ -984,7 +984,7 @@ async function listInstances(req, res) {
       modality_type:         study.modality_type,
       number_of_series:      study.number_of_series,
       number_of_instances:   study.number_of_instances,
-      patient_name:          enc.decrypt(study.name_encrypted),
+      patient_name:          enc.safeDecrypt(study.name_encrypted),
       birth_date:            study.birth_date,
       gender:                study.gender,
       medical_record_number: study.medical_record_number,
@@ -1054,7 +1054,7 @@ async function uploadSecondaryCapture(req, res) {
   const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
   const dicomTags = {
     SpecificCharacterSet:  'ISO_IR 100',
-    PatientName:           enc.decrypt(study.name_encrypted) || '',
+    PatientName:           enc.safeDecrypt(study.name_encrypted) || '',
     PatientID:             study.medical_record_number || '',
     StudyInstanceUID:      study.study_instance_uid,
     SeriesDescription:     'Secondary Capture — OrthoVis',

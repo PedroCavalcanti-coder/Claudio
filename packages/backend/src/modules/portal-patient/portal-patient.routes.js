@@ -128,7 +128,7 @@ router.post('/login', authLimiter, async (req, res) => {
     token,
     patient: {
       id:    account.patient_id,
-      name:  enc.decrypt(account.name_encrypted),
+      name:  enc.safeDecrypt(account.name_encrypted),
       mrn:   account.medical_record_number,
     },
   }, 'Login realizado com sucesso');

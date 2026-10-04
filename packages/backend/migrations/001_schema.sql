@@ -2030,6 +2030,16 @@ ALTER TABLE ris.appointments
 -- ANONIMIZADO: identificadores zerados, vínculo clínico preservado por pseudônimo.
 ALTER TABLE ris.patients ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMPTZ;
 
+-- 21.7 Canário da chave de criptografia -----------------------------------------
+-- Linha única cifrada com ENCRYPTION_KEY. No boot a API tenta decifrá-la: chave errada no .env
+-- (deploy com .env trocado) faz o sistema recusar subir com mensagem clara, em vez de
+-- listar tudo como "[ilegível]" e gravar dados novos com a chave errada.
+CREATE TABLE IF NOT EXISTS ris.system_canary (
+  id         SMALLINT    PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  value_enc  BYTEA       NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- =============================================================================
 -- FIM DO SCHEMA
 -- =============================================================================

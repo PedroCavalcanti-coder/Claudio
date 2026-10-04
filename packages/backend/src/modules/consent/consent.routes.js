@@ -53,7 +53,7 @@ router.post('/sign',
     const { rows: pRows } = await db.query(
       `SELECT cpf_encrypted FROM ris.patients WHERE id=$1`, [patient_id]
     );
-    const cpfHash = pRows[0] ? enc.searchHash(enc.decrypt(pRows[0].cpf_encrypted)) : null;
+    const cpfHash = pRows[0] ? enc.searchHash(enc.safeDecrypt(pRows[0].cpf_encrypted, null)) : null;
 
     const { rows } = await db.query(
       `INSERT INTO ris.patient_consents

@@ -135,6 +135,17 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 if (require.main === module) {
+  // Chave de criptografia errada = sistema inteiro ilegível: recusa subir, com mensagem clara.
+  require('./services/keyCheck').verifyEncryptionKey()
+    .then(() => start())
+    .catch((err) => {
+      logger.error(`❌ ${err.message}`);
+      console.error(`\n❌ ${err.message}\n`);
+      process.exit(1);
+    });
+}
+
+function start() {
   // Worker de email (Bull) roda embutido no mesmo processo da API, não separado.
   require('./queues/emailQueue');
   logger.info('📧 Worker de email (Bull) inicializado');

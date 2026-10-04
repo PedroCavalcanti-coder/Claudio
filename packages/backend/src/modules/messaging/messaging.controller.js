@@ -11,7 +11,7 @@ const { NotFoundError } = require('../../utils/errors');
 
 // Mascara o destino (LGPD): mostra só os últimos 4 dígitos/caracteres.
 function maskTo(buf) {
-  const v = buf ? enc.decrypt(buf) : '';
+  const v = buf ? enc.safeDecrypt(buf) : '';
   if (!v) return null;
   return v.length <= 4 ? v : `••••${v.slice(-4)}`;
 }
@@ -50,7 +50,7 @@ async function retry(req, res) {
     `SELECT id, channel, to_enc, body FROM ris.message_outbox WHERE id = $1`, [req.params.id]);
   if (!rows.length) throw new NotFoundError('Mensagem');
   const m = rows[0];
-  const to = m.to_enc ? enc.decrypt(m.to_enc) : '';
+  const to = m.to_enc ? enc.safeDecrypt(m.to_enc) : '';
   const d = await messaging.tryDeliver({ channel: m.channel, to, body: m.body });
   const upd = await db.query(
     `UPDATE ris.message_outbox

@@ -49,7 +49,7 @@ async function list(req, res) {
 
   const data = dataRes.rows.map(r => ({
     ...r,
-    patient_name: enc.decrypt(r.name_encrypted),
+    patient_name: enc.safeDecrypt(r.name_encrypted),
     name_encrypted: undefined,
   }));
 
@@ -84,7 +84,7 @@ async function getById(req, res) {
   const row = rows[0];
   return success(res, {
     ...row,
-    patient_name: enc.decrypt(row.name_encrypted),
+    patient_name: enc.safeDecrypt(row.name_encrypted),
     name_encrypted: undefined,
   });
 }
@@ -670,7 +670,7 @@ async function _notifyReportSigned(reportId, patientId, signingUser) {
   const { rows: pRows } = await db.query(
     `SELECT p.email_encrypted FROM ris.patients p WHERE p.id = $1`, [patientId]
   );
-  const email = pRows[0]?.email_encrypted ? enc.decrypt(pRows[0].email_encrypted) : null;
+  const email = pRows[0]?.email_encrypted ? enc.safeDecrypt(pRows[0].email_encrypted, null) : null;
   logger.info('EMAIL (simulado) → paciente: laudo disponível', { patientId, email, reportId });
 
   const { rows: aRows } = await db.query(

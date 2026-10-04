@@ -133,7 +133,7 @@ async function list(req, res) {
 
   const data = dataRes.rows.map(row => ({
     ...row,
-    patient_name: enc.decrypt(row.name_encrypted),
+    patient_name: enc.safeDecrypt(row.name_encrypted),
     name_encrypted: undefined,
     cpf_encrypted: undefined,
   }));
@@ -175,8 +175,8 @@ async function getById(req, res) {
   const row = rows[0];
   return success(res, {
     ...row,
-    patient_name:  enc.decrypt(row.name_encrypted),
-    patient_phone: enc.decrypt(row.phone_encrypted),
+    patient_name:  enc.safeDecrypt(row.name_encrypted),
+    patient_phone: enc.safeDecrypt(row.phone_encrypted, null),
     name_encrypted: undefined,
     phone_encrypted: undefined,
   });
@@ -311,9 +311,9 @@ async function enqueueAppointmentConfirm(appointmentId, unitId, userId) {
   );
   if (!rows.length) return;
   const r = rows[0];
-  const phone = r.phone_encrypted ? enc.decrypt(r.phone_encrypted) : '';
+  const phone = r.phone_encrypted ? enc.safeDecrypt(r.phone_encrypted, null) : '';
   if (!phone) return; // sem telefone não há o que confirmar
-  const name = r.name_encrypted ? enc.decrypt(r.name_encrypted) : '';
+  const name = r.name_encrypted ? enc.safeDecrypt(r.name_encrypted) : '';
   const body = messaging.buildAppointmentConfirm({
     patientName: name, procedure: r.procedure_name, when: r.scheduled_at, unitName: r.unit_name,
   });

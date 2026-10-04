@@ -105,11 +105,27 @@ function encryptPatientFields(data) {
 /**
  * Descriptografa campos do paciente para resposta da API.
  */
-function safeDecrypt(buf) {
+const ILLEGIBLE = '[ilegível]';
+let lastIllegibleLog = 0;
+
+/**
+ * Decifra para EXIBIÇÃO/listagem: um registro corrompido ou cifrado com outra chave não pode
+ * derrubar a lista inteira (500). Devolve `fallback` ("[ilegível]" por padrão; use `null` para
+ * e-mail/telefone, que nunca devem virar texto). Nulo → nulo. NÃO usar em documentos
+ * assinados/PDF: ali a falha precisa interromper (use `decrypt`).
+ */
+function safeDecrypt(buf, fallback = ILLEGIBLE) {
+  if (buf === null || buf === undefined) return null;
   try {
     return decrypt(buf);
   } catch (error) {
-    return null;
+    // 1 log por minuto: uma chave errada afetaria TODAS as linhas e inundaria o disco.
+    const now = Date.now();
+    if (now - lastIllegibleLog > 60_000) {
+      lastIllegibleLog = now;
+      require('../config/logger').error('Dado cifrado ilegível (chave errada ou registro corrompido)', { error: error.message });
+    }
+    return fallback;
   }
 }
 
@@ -121,8 +137,8 @@ function decryptPatientFields(row) {
     cpf:   row.cpf_encrypted  ? safeDecrypt(row.cpf_encrypted)  : undefined,
     cns:   row.cns_encrypted  ? safeDecrypt(row.cns_encrypted)  : undefined,
     rg:    row.rg_encrypted   ? safeDecrypt(row.rg_encrypted)   : undefined,
-    phone: row.phone_encrypted ? safeDecrypt(row.phone_encrypted) : undefined,
-    email: row.email_encrypted ? safeDecrypt(row.email_encrypted) : undefined,
+    phone: row.phone_encrypted ? safeDecrypt(row.phone_encrypted, null) : undefined,
+    email: row.email_encrypted ? safeDecrypt(row.email_encrypted, null) : undefined,
     // Remover campos binários da resposta
     name_encrypted:   undefined,
     cpf_encrypted:    undefined,
@@ -140,6 +156,7 @@ module.exports = {
   encrypt,
   decrypt,
   safeDecrypt,
+  ILLEGIBLE,
   searchHash,
   integrityHash,
   normalizeCpf,

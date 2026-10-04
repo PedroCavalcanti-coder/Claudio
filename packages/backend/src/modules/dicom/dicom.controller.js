@@ -176,7 +176,7 @@ async function getStudySeries(req, res) {
     modality_type:      st[0].modality_type,
     study_description:  st[0].study_description,
     status:             st[0].status,
-    patient_name:       enc.decrypt(st[0].name_encrypted),
+    patient_name:       enc.safeDecrypt(st[0].name_encrypted),
     patient_id:         st[0].medical_record_number,
     series,
   });

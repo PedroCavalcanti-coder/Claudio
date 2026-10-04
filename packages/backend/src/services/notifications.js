@@ -80,13 +80,13 @@ async function loadPatientCreatedData(patientId) {
   );
   if (!rows.length) return null;
   const p = rows[0];
-  const email = p.email_encrypted ? enc.decrypt(p.email_encrypted) : null;
+  const email = p.email_encrypted ? enc.safeDecrypt(p.email_encrypted, null) : null;
   return {
     recipientEmail: email,
     optedOut:       p.email_opt_out === true,
     templateData: {
       patient: {
-        name:                   enc.decrypt(p.name_encrypted),
+        name:                   enc.safeDecrypt(p.name_encrypted),
         medical_record_number:  p.medical_record_number,
       },
       portal: {
@@ -117,12 +117,12 @@ async function loadAppointmentData(appointmentId) {
   if (!rows.length) return null;
   const a = rows[0];
   return {
-    recipientEmail: a.email_encrypted ? enc.decrypt(a.email_encrypted) : null,
+    recipientEmail: a.email_encrypted ? enc.safeDecrypt(a.email_encrypted, null) : null,
     optedOut:       a.email_opt_out === true,
     raw: a,
     templateData: {
       patient: {
-        name:                  enc.decrypt(a.name_encrypted),
+        name:                  enc.safeDecrypt(a.name_encrypted),
         medical_record_number: a.medical_record_number,
       },
       appointment: {
@@ -178,14 +178,14 @@ async function loadStudyData(studyId) {
   if (!rows.length) return null;
   const s = rows[0];
   return {
-    patientEmail:   s.p_email ? enc.decrypt(s.p_email) : null,
+    patientEmail:   s.p_email ? enc.safeDecrypt(s.p_email, null) : null,
     patientOptOut:  s.p_opt_out === true,
     physicianEmail: s.phys_email || null,
     physicianOptOut:s.phys_opt_out === true,
     raw: s,
     templateData: {
       patient: {
-        name:                  enc.decrypt(s.p_name),
+        name:                  enc.safeDecrypt(s.p_name),
         medical_record_number: s.medical_record_number,
       },
       physician: { name: s.phys_name },
@@ -227,14 +227,14 @@ async function loadReportData(reportId) {
   if (!rows.length) return null;
   const r = rows[0];
   return {
-    patientEmail:    r.p_email ? enc.decrypt(r.p_email) : null,
+    patientEmail:    r.p_email ? enc.safeDecrypt(r.p_email, null) : null,
     patientOptOut:   r.p_opt_out === true,
     physicianEmail:  r.phys_email || null,
     physicianOptOut: r.phys_opt_out === true,
     raw: r,
     templateData: {
       patient: {
-        name:                  enc.decrypt(r.p_name),
+        name:                  enc.safeDecrypt(r.p_name),
         medical_record_number: r.medical_record_number,
       },
       physician:    { name: r.phys_name },

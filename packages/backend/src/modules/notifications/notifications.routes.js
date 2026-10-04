@@ -78,7 +78,7 @@ router.get('/sla/overdue', requirePermission('notifications:sla'), async (req, r
   const enc = require('../../services/encryption');
   return success(res, rows.map(r => ({
     ...r,
-    patient_name: enc.decrypt(r.name_encrypted),
+    patient_name: enc.safeDecrypt(r.name_encrypted),
     name_encrypted: undefined,
   })));
 });

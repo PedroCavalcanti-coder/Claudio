@@ -167,7 +167,7 @@ async function loginPaciente(req, res) {
   //    "Reativar conta", que reusa as credenciais já validadas.
   if (!account.patient_is_active) {
     let patientName;
-    try { patientName = enc.decrypt(account.name_encrypted); }
+    try { patientName = enc.safeDecrypt(account.name_encrypted); }
     catch { patientName = 'Paciente'; }
     return success(res, {
       code:           'ACCOUNT_INACTIVE',
@@ -192,7 +192,7 @@ async function loginPaciente(req, res) {
 
   let patientName;
   try {
-    patientName = enc.decrypt(account.name_encrypted);
+    patientName = enc.safeDecrypt(account.name_encrypted);
   } catch (error) {
     patientName = 'Paciente';
   }
@@ -263,7 +263,7 @@ async function reactivatePaciente(req, res) {
   });
 
   let patientName;
-  try { patientName = enc.decrypt(account.name_encrypted); }
+  try { patientName = enc.safeDecrypt(account.name_encrypted); }
   catch { patientName = 'Paciente'; }
 
   return success(res, {

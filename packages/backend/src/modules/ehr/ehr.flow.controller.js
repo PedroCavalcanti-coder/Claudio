@@ -233,7 +233,7 @@ async function queue(req, res) {
       WHERE ${where}
       ORDER BY ${QUEUE_ORDER}`, params);
   return success(res, rows.map((r) => ({
-    id: r.id, patient_id: r.patient_id, patient_name: enc.decrypt(r.name_encrypted),
+    id: r.id, patient_id: r.patient_id, patient_name: enc.safeDecrypt(r.name_encrypted),
     mrn: r.medical_record_number, registration_status: r.registration_status,
     flow_stage: r.flow_stage, is_emergency: r.is_emergency, encounter_type: r.encounter_type,
     manchester_level: r.manchester_level, ticket_number: r.ticket_number,
@@ -265,7 +265,7 @@ async function medicationQueue(req, res) {
   return success(res, rows.map((r) => ({
     item_id: r.item_id, drug_name: r.drug_name, dose: r.dose, route: r.route, frequency: r.frequency,
     instructions: r.instructions, prescription_id: r.prescription_id, patient_id: r.patient_id,
-    encounter_id: r.encounter_id, patient_name: enc.decrypt(r.name_encrypted), mrn: r.medical_record_number,
+    encounter_id: r.encounter_id, patient_name: enc.safeDecrypt(r.name_encrypted), mrn: r.medical_record_number,
     prescriber_name: r.prescriber_name, created_at: r.created_at,
   })));
 }
@@ -317,7 +317,7 @@ async function medicationSchedule(req, res) {
     item_id: r.item_id, drug_name: r.drug_name, dose: r.dose, route: r.route,
     scheduled_times: r.scheduled_times || [], done_count: r.done_count,
     patient_id: r.patient_id, encounter_id: r.encounter_id,
-    patient_name: enc.decrypt(r.name_encrypted), mrn: r.medical_record_number,
+    patient_name: enc.safeDecrypt(r.name_encrypted), mrn: r.medical_record_number,
   })));
 }
 
@@ -466,10 +466,10 @@ async function panel(req, res) {
   }
 
   const called = q.filter((r) => r.called_at)
-    .map((r) => ({ ticket_number: r.ticket_number, name: firstName(enc.decrypt(r.name_encrypted)),
+    .map((r) => ({ ticket_number: r.ticket_number, name: firstName(enc.safeDecrypt(r.name_encrypted)),
                    room_label: r.room_label, called_at: r.called_at, is_emergency: r.is_emergency }));
   const waiting = q.filter((r) => !r.called_at && r.flow_stage === 'waiting_doctor')
-    .map((r) => ({ ticket_number: r.ticket_number, name: firstName(enc.decrypt(r.name_encrypted)),
+    .map((r) => ({ ticket_number: r.ticket_number, name: firstName(enc.safeDecrypt(r.name_encrypted)),
                    is_emergency: r.is_emergency, manchester_level: r.manchester_level }));
 
   return success(res, {
